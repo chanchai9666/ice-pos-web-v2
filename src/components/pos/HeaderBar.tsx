@@ -87,7 +87,10 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             <UserIcon className="w-3.5 h-3.5" />
             <span>แคชเชียร์: </span>
             <span className="font-bold text-base-content">
-              {user?.full_name || user?.username || "เจ้าหน้าที่"}
+              {user?.display_name ||
+                user?.full_name ||
+                user?.username ||
+                "เจ้าหน้าที่"}
             </span>
           </div>
         </div>

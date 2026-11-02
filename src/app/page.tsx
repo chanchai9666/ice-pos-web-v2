@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../context/AuthContext.tsx";
 import { CartProvider, useCart } from "../context/CartContext.tsx";
-import { Product, Category, Receipt, Sale } from "../types/api.ts";
+import { Product, Category, Receipt } from "../types/api.ts";
 import { syncService } from "../services/syncService.ts";
 import { offlineStorage } from "../services/offlineStorage.ts";
 import { HeaderBar } from "../components/pos/HeaderBar.tsx";
@@ -72,7 +72,7 @@ function PosContent() {
     }
   }, [token]);
 
-  const handleCheckoutSuccess = (receipt: Receipt, sale: Sale) => {
+  const handleCheckoutSuccess = (receipt: Receipt) => {
     setCompletedReceipt(receipt);
   };
 

@@ -56,10 +56,35 @@ export const DailySummaryDrawer: React.FC<DailySummaryDrawerProps> = ({
   }, []);
 
   useEffect(() => {
+    let active = true;
     if (isOpen) {
-      loadReport();
+      Promise.all([
+        apiClient.get<{ data: DailySalesSummary; success: boolean }>(
+          "/reports/sales-summary"
+        ),
+        apiClient.get<{ data: BestSellerItem[]; success: boolean }>(
+          "/reports/best-sellers"
+        ),
+      ])
+        .then(([sumRes, bestRes]) => {
+          if (active) {
+            if (sumRes?.data) setSummary(sumRes.data);
+            if (bestRes?.data) setBestSellers(bestRes.data);
+            setIsLoading(false);
+          }
+        })
+        .catch((err) => {
+          if (active) {
+            console.error("Failed to load daily report:", err);
+            setError("ไม่สามารถดึงรายงานยอดขายได้ (ตรวจสอบการเชื่อมต่อ API)");
+            setIsLoading(false);
+          }
+        });
     }
-  }, [isOpen, loadReport]);
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

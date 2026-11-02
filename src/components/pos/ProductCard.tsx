@@ -14,12 +14,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onAddToCart,
 }) => {
+  const priceSatang = product.price ?? product.unit_price ?? 0;
+
   return (
     <button
       type="button"
       onClick={() => onAddToCart(product)}
       className="card bg-base-100 hover:bg-base-200/80 active:scale-97 border-2 border-base-300 hover:border-primary p-4 rounded-2xl shadow-sm hover:shadow-md transition-all text-left flex flex-col justify-between min-h-[110px] w-full cursor-pointer relative overflow-hidden group"
-      aria-label={`${product.name} ราคา ${formatBaht(product.unit_price)}`}
+      aria-label={`${product.name} ราคา ${formatBaht(priceSatang)}`}
     >
       <div className="flex justify-between items-start gap-2 w-full">
         <h3 className="text-xl sm:text-2xl font-black text-base-content line-clamp-2 leading-tight">
@@ -33,7 +35,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {product.code ? `รหัส: ${product.code}` : "สินค้าทั่วไป"}
         </span>
         <span className="text-2xl sm:text-3xl font-black text-primary">
-          {formatBaht(product.unit_price)}
+          {formatBaht(priceSatang)}
         </span>
       </div>
     </button>

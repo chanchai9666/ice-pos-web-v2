@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Delete, CheckCircle2, Lock } from "lucide-react";
+import { Delete, CheckCircle2 } from "lucide-react";
 
 interface PinPadProps {
   onComplete: (pin: string) => void;

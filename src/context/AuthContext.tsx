@@ -30,73 +30,74 @@ const CACHED_USER_KEY = "ice_pos_cached_user";
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setTokenState] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isOffline, setIsOffline] = useState<boolean>(false);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem(CACHED_USER_KEY);
+        if (cached) return JSON.parse(cached);
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  });
+
+  const [token, setTokenState] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return getToken();
+    }
+    return null;
+  });
+
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const [isOffline, setIsOffline] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return !window.navigator.onLine;
+    }
+    return false;
+  });
 
   // Monitor network status
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setIsOffline(!window.navigator.onLine);
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
 
-      const handleOnline = () => setIsOffline(false);
-      const handleOffline = () => setIsOffline(true);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
-      window.addEventListener("online", handleOnline);
-      window.addEventListener("offline", handleOffline);
-
-      return () => {
-        window.removeEventListener("online", handleOnline);
-        window.removeEventListener("offline", handleOffline);
-      };
-    }
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
-  // Restore session on mount
+  // Validate token with backend if online
   useEffect(() => {
-    const initAuth = async () => {
-      const storedToken = getToken();
-      if (storedToken) {
-        setTokenState(storedToken);
-
-        // Try load cached user first for instant display
-        const cachedUserStr = localStorage.getItem(CACHED_USER_KEY);
-        if (cachedUserStr) {
-          try {
-            setUser(JSON.parse(cachedUserStr));
-          } catch {
-            // ignore
-          }
-        }
-
-        // Validate token with backend if online
-        if (navigator.onLine) {
-          try {
-            const meRes = await apiClient.get<{
-              data: MeData;
-              success: boolean;
-            }>("/auth/me", storedToken);
-            if (meRes?.data?.user) {
-              setUser(meRes.data.user);
-              localStorage.setItem(
-                CACHED_USER_KEY,
-                JSON.stringify(meRes.data.user)
-              );
-            }
-          } catch (err) {
-            console.warn(
-              "Could not verify session with /auth/me, keeping cached session:",
-              err
+    let active = true;
+    if (token && typeof window !== "undefined" && window.navigator.onLine) {
+      apiClient
+        .get<{ data: MeData; success: boolean }>("/auth/me", token)
+        .then((meRes) => {
+          if (active && meRes?.data?.user) {
+            setUser(meRes.data.user);
+            localStorage.setItem(
+              CACHED_USER_KEY,
+              JSON.stringify(meRes.data.user)
             );
           }
-        }
-      }
-      setIsLoading(false);
+        })
+        .catch((err) => {
+          console.warn(
+            "Could not verify session with /auth/me, keeping cached session:",
+            err
+          );
+        });
+    }
+    return () => {
+      active = false;
     };
-
-    initAuth();
-  }, []);
+  }, [token]);
 
   const loginWithPin = useCallback(
     async (pin: string): Promise<{ success: boolean; error?: string }> => {
@@ -163,7 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const logout = useCallback(async () => {
     try {
-      if (navigator.onLine && token) {
+      if (typeof window !== "undefined" && window.navigator.onLine && token) {
         await apiClient.post("/auth/logout", {}, token).catch(() => {});
       }
     } finally {
@@ -172,6 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(null);
       localStorage.removeItem(CACHED_USER_KEY);
       if (typeof window !== "undefined") {
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.href = "/login";
       }
     }

@@ -6,7 +6,8 @@
 export interface User {
   id: string;
   username: string;
-  full_name: string;
+  full_name?: string;
+  display_name?: string;
   role: "admin" | "cashier" | string;
   is_active: boolean;
   created_at?: string;
@@ -52,7 +53,8 @@ export interface Product {
   name: string;
   barcode?: string;
   code?: string;
-  unit_price: number; // Satang
+  unit_price?: number; // Satang
+  price?: number; // Satang
   cost_price?: number; // Satang
   unit?: string;
   image_url?: string;

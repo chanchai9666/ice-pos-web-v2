@@ -6,14 +6,12 @@ import { Delete } from "lucide-react";
 interface NumpadProps {
   value: string;
   onChange: (val: string) => void;
-  onEnter?: () => void;
   disabled?: boolean;
 }
 
 export const Numpad: React.FC<NumpadProps> = ({
   value,
   onChange,
-  onEnter,
   disabled = false,
 }) => {
   const handleDigit = (digit: string) => {

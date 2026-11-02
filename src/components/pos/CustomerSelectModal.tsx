@@ -24,13 +24,18 @@ export const CustomerSelectModal: React.FC<CustomerSelectModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    let active = true;
     if (isOpen) {
-      setIsLoading(true);
       syncService.pullCustomers().then((data) => {
-        setCustomers(data);
-        setIsLoading(false);
+        if (active) {
+          setCustomers(data);
+          setIsLoading(false);
+        }
       });
     }
+    return () => {
+      active = false;
+    };
   }, [isOpen]);
 
   const filtered = useMemo(() => {

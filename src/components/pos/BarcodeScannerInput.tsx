@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { Barcode, Search, X } from "lucide-react";
+import { Barcode, X } from "lucide-react";
 
 interface BarcodeScannerInputProps {
   onScanBarcode: (barcode: string) => void;

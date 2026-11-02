@@ -56,10 +56,28 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
   }, []);
 
   useEffect(() => {
+    let active = true;
     if (isOpen) {
-      loadSales();
+      apiClient
+        .get<{ data: Sale[]; success: boolean }>("/sales?limit=50")
+        .then((res) => {
+          if (active && res && res.data) {
+            setSales(res.data);
+            setIsLoading(false);
+          }
+        })
+        .catch((err) => {
+          if (active) {
+            console.error("Failed to load sales history:", err);
+            setError("ไม่สามารถดึงประวัติการขายได้ (ตรวจสอบการเชื่อมต่อ API)");
+            setIsLoading(false);
+          }
+        });
     }
-  }, [isOpen, loadSales]);
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
 
   const handleVoidConfirm = async (reason: string) => {
     if (!voidingSale) return;

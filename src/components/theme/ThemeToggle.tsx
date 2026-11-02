@@ -1,17 +1,17 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Sun, Moon } from "lucide-react";
 
 export const ThemeToggle: React.FC = () => {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    const savedTheme =
-      (localStorage.getItem("ice_pos_theme") as "light" | "dark") || "light";
-    setTheme(savedTheme);
-    document.documentElement.setAttribute("data-theme", savedTheme);
-  }, []);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      return (
+        (localStorage.getItem("ice_pos_theme") as "light" | "dark") || "light"
+      );
+    }
+    return "light";
+  });
 
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";

@@ -53,7 +53,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       // Add new item
-      const unit_price = product.unit_price;
+      const unit_price = product.price ?? product.unit_price ?? 0;
       const cost_price = product.cost_price || 0;
       const gross_total = qty * unit_price;
       const net_total = gross_total;
@@ -74,34 +74,37 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, []);
 
-  const updateQty = useCallback((productId: string, newQty: number) => {
-    if (newQty <= 0) {
-      removeItem(productId);
-      return;
-    }
-
-    setItems((prevItems) =>
-      prevItems.map((item) => {
-        if (item.product_id === productId) {
-          const gross_total = newQty * item.unit_price;
-          const net_total = gross_total - (item.line_discount || 0);
-          return {
-            ...item,
-            qty: newQty,
-            gross_total,
-            net_total,
-          };
-        }
-        return item;
-      })
-    );
-  }, []);
-
   const removeItem = useCallback((productId: string) => {
     setItems((prevItems) =>
       prevItems.filter((item) => item.product_id !== productId)
     );
   }, []);
+
+  const updateQty = useCallback(
+    (productId: string, newQty: number) => {
+      if (newQty <= 0) {
+        removeItem(productId);
+        return;
+      }
+
+      setItems((prevItems) =>
+        prevItems.map((item) => {
+          if (item.product_id === productId) {
+            const gross_total = newQty * item.unit_price;
+            const net_total = gross_total - (item.line_discount || 0);
+            return {
+              ...item,
+              qty: newQty,
+              gross_total,
+              net_total,
+            };
+          }
+          return item;
+        })
+      );
+    },
+    [removeItem]
+  );
 
   const clearCart = useCallback(() => {
     setItems([]);
