@@ -1,69 +1,151 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../context/AuthContext.tsx";
+import { CartProvider, useCart } from "../context/CartContext.tsx";
+import { Product, Category, Receipt, Sale } from "../types/api.ts";
+import { syncService } from "../services/syncService.ts";
+import { offlineStorage } from "../services/offlineStorage.ts";
+import { HeaderBar } from "../components/pos/HeaderBar.tsx";
+import { ProductGrid } from "../components/pos/ProductGrid.tsx";
+import { CartSidebar } from "../components/pos/CartSidebar.tsx";
+import { CheckoutModal } from "../components/pos/CheckoutModal.tsx";
+import { ReceiptModal } from "../components/pos/ReceiptModal.tsx";
+import { SalesHistoryModal } from "../components/pos/SalesHistoryModal.tsx";
+import { DailySummaryDrawer } from "../components/pos/DailySummaryDrawer.tsx";
+
+function PosContent() {
+  const router = useRouter();
+  const { user, token, isLoading: isAuthLoading } = useAuth();
+  const { addItem } = useCart();
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true);
+
+  // Modals state
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isDailySummaryOpen, setIsDailySummaryOpen] = useState(false);
+  const [completedReceipt, setCompletedReceipt] = useState<Receipt | null>(
+    null
+  );
+
+  // Redirect to login if unauthenticated
+  useEffect(() => {
+    if (!isAuthLoading && !token) {
+      router.push("/login");
+    }
+  }, [token, isAuthLoading, router]);
+
+  // Load catalog data
+  useEffect(() => {
+    const loadCatalog = async () => {
+      // First show cached data immediately for snappy UX
+      const cached = offlineStorage.getCatalog();
+      if (cached.products.length > 0) {
+        setProducts(cached.products);
+        setCategories(cached.categories);
+        setIsCatalogLoading(false);
+      }
+
+      // Then pull fresh updates if online
+      try {
+        const fresh = await syncService.pullCatalog();
+        if (fresh.products.length > 0) {
+          setProducts(fresh.products);
+          setCategories(fresh.categories);
+        }
+      } catch (e) {
+        console.warn("Could not fetch fresh catalog:", e);
+      } finally {
+        setIsCatalogLoading(false);
+      }
+
+      // Also pre-cache customers
+      syncService.pullCustomers().catch(() => {});
+    };
+
+    if (token) {
+      loadCatalog();
+    }
+  }, [token]);
+
+  const handleCheckoutSuccess = (receipt: Receipt, sale: Sale) => {
+    setCompletedReceipt(receipt);
+  };
+
+  if (isAuthLoading || (!token && !user)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-base-100">
+        <span className="loading loading-spinner loading-lg text-primary"></span>
+        <p className="text-xl font-bold text-base-content/70">
+          กำลังตรวจสอบสิทธิ์การเข้าใช้งาน...
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="flex flex-col h-screen overflow-hidden bg-base-200">
+      {/* Top Header Navigation */}
+      <HeaderBar
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenDailySummary={() => setIsDailySummaryOpen(true)}
+      />
+
+      {/* Main Cashier Workspace (Hybrid Layout) */}
+      <main className="flex-1 overflow-hidden p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
+        {/* Left Column (60% ~ 7 cols): Products Catalog & Scanner */}
+        <section className="lg:col-span-7 xl:col-span-8 h-full overflow-hidden bg-base-100 border-2 border-base-300 rounded-3xl p-3 sm:p-4 shadow-sm flex flex-col">
+          <ProductGrid
+            products={products}
+            categories={categories}
+            onAddToCart={addItem}
+            isLoading={isCatalogLoading}
+          />
+        </section>
+
+        {/* Right Column (40% ~ 5 cols): Cart & Checkout Action */}
+        <section className="lg:col-span-5 xl:col-span-4 h-full overflow-hidden">
+          <CartSidebar onOpenCheckout={() => setIsCheckoutOpen(true)} />
+        </section>
       </main>
+
+      {/* Checkout Modal */}
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        onSuccess={handleCheckoutSuccess}
+      />
+
+      {/* Receipt Modal */}
+      <ReceiptModal
+        isOpen={Boolean(completedReceipt)}
+        receipt={completedReceipt}
+        onClose={() => setCompletedReceipt(null)}
+      />
+
+      {/* Sales History & Direct Void Modal */}
+      <SalesHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+      />
+
+      {/* Daily Sales Summary Drawer */}
+      <DailySummaryDrawer
+        isOpen={isDailySummaryOpen}
+        onClose={() => setIsDailySummaryOpen(false)}
+      />
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <CartProvider>
+      <PosContent />
+    </CartProvider>
   );
 }
