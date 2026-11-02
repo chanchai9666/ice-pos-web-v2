@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Sarabun } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "../context/AuthContext.tsx";
 
 const sarabun = Sarabun({
   weight: ["400", "500", "600", "700", "800"],
@@ -23,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="th" data-theme="light" className={`${sarabun.variable} h-full`}>
       <body className="min-h-full flex flex-col font-sans bg-base-100 text-base-content">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
