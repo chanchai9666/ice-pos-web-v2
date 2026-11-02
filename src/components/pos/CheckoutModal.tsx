@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useAuth } from "../../context/AuthContext.tsx";
 import { useCart } from "../../context/CartContext.tsx";
 import { Customer, CheckoutResponse, Receipt, Sale } from "../../types/api.ts";
@@ -71,12 +71,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const isCashSufficient = tenderedSatang >= grandTotalSatang;
 
+  const isSubmittingRef = useRef(false);
+
   const handleBanknoteSelect = (amount: number) => {
     setTenderedInput(amount.toString());
   };
 
   const handleConfirmCheckout = async () => {
-    if (isSubmitting) return;
+    if (isSubmittingRef.current || isSubmitting) return;
     setErrorMessage(null);
 
     if (paymentMethod === "CASH" && !isCashSufficient) {
@@ -89,95 +91,109 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
+
+    const saveOfflineFallback = (now: Date, occurredAtIso: string) => {
+      const localSaleId = crypto.randomUUID();
+      const dateCode = now.toISOString().slice(0, 10).replace(/-/g, "");
+      const randCode = Math.floor(1000 + Math.random() * 9000);
+      const localSaleNo = `OFF-${dateCode}-${randCode}`;
+      const localReceiptNo = `REC-${dateCode}-${randCode}`;
+
+      const offlineSale: Sale = {
+        id: localSaleId,
+        sale_no: localSaleNo,
+        cashier_id: user?.id || "cashier-1",
+        cashier_name: user?.full_name || "แคชเชียร์",
+        customer_id: selectedCustomer?.id,
+        customer_name: selectedCustomer?.name,
+        payment_method: paymentMethod,
+        subtotal: subtotalSatang,
+        bill_discount: billDiscountSatang,
+        grand_total: grandTotalSatang,
+        tendered_amount: paymentMethod === "CASH" ? tenderedSatang : 0,
+        change_amount: changeSatang,
+        credit_amount: paymentMethod === "CREDIT" ? grandTotalSatang : 0,
+        status: "COMPLETED",
+        lines: items,
+        occurred_at: occurredAtIso,
+      };
+
+      const offlineReceipt: Receipt = {
+        receipt_no: localReceiptNo,
+        sale_no: localSaleNo,
+        cashier_name: user?.full_name || "แคชเชียร์",
+        customer_name: selectedCustomer?.name,
+        payment_method: paymentMethod,
+        subtotal: subtotalSatang,
+        discount: billDiscountSatang,
+        grand_total: grandTotalSatang,
+        tendered: paymentMethod === "CASH" ? tenderedSatang : 0,
+        change: changeSatang,
+        items: items.map((line) => ({
+          product_name: line.product_name,
+          qty: line.qty,
+          unit_price: line.unit_price,
+          net_total: line.net_total,
+        })),
+        occurred_at: occurredAtIso,
+        status: "COMPLETED",
+      };
+
+      offlineStorage.queueOfflineSale(offlineSale);
+      clearCart();
+      onSuccess(offlineReceipt, offlineSale);
+      onClose();
+    };
 
     try {
       const now = new Date();
       const occurredAtIso = now.toISOString();
 
       if (navigator.onLine) {
-        // ONLINE: Call POST /sales API
-        const checkoutPayload = {
-          lines: items,
-          payment_method: paymentMethod,
-          tendered_amount: paymentMethod === "CASH" ? tenderedSatang : 0,
-          bill_discount: billDiscountSatang,
-          customer_id: selectedCustomer ? selectedCustomer.id : undefined,
-        };
+        try {
+          // ONLINE: Call POST /sales API
+          const checkoutPayload = {
+            lines: items,
+            payment_method: paymentMethod,
+            tendered_amount: paymentMethod === "CASH" ? tenderedSatang : 0,
+            bill_discount: billDiscountSatang,
+            customer_id: selectedCustomer ? selectedCustomer.id : undefined,
+          };
 
-        const response = await apiClient.post<CheckoutResponse>(
-          "/sales",
-          checkoutPayload
-        );
-
-        if (response && response.success && response.data) {
-          clearCart();
-          onSuccess(response.data.receipt, response.data.sale);
-          onClose();
-          return;
-        } else {
-          throw new Error(
-            response.message || "เกิดข้อผิดพลาดในการบันทึกการขาย"
+          const response = await apiClient.post<CheckoutResponse>(
+            "/sales",
+            checkoutPayload
           );
+
+          if (response && response.success && response.data) {
+            clearCart();
+            onSuccess(response.data.receipt, response.data.sale);
+            onClose();
+            return;
+          } else {
+            throw new Error(
+              response.message || "เกิดข้อผิดพลาดในการบันทึกการขาย"
+            );
+          }
+        } catch (onlineErr) {
+          console.warn(
+            "Online POST /sales failed, fallback to offline queue:",
+            onlineErr
+          );
+          saveOfflineFallback(now, occurredAtIso);
+          return;
         }
       } else {
-        // OFFLINE: Generate Local Sale & Receipt, queue for sync
-        const localSaleId = crypto.randomUUID();
-        const dateCode = now.toISOString().slice(0, 10).replace(/-/g, "");
-        const randCode = Math.floor(1000 + Math.random() * 9000);
-        const localSaleNo = `OFF-${dateCode}-${randCode}`;
-        const localReceiptNo = `REC-${dateCode}-${randCode}`;
-
-        const offlineSale: Sale = {
-          id: localSaleId,
-          sale_no: localSaleNo,
-          cashier_id: user?.id || "cashier-1",
-          cashier_name: user?.full_name || "แคชเชียร์",
-          customer_id: selectedCustomer?.id,
-          customer_name: selectedCustomer?.name,
-          payment_method: paymentMethod,
-          subtotal: subtotalSatang,
-          bill_discount: billDiscountSatang,
-          grand_total: grandTotalSatang,
-          tendered_amount: paymentMethod === "CASH" ? tenderedSatang : 0,
-          change_amount: changeSatang,
-          credit_amount: paymentMethod === "CREDIT" ? grandTotalSatang : 0,
-          status: "COMPLETED",
-          lines: items,
-          occurred_at: occurredAtIso,
-        };
-
-        const offlineReceipt: Receipt = {
-          receipt_no: localReceiptNo,
-          sale_no: localSaleNo,
-          cashier_name: user?.full_name || "แคชเชียร์",
-          customer_name: selectedCustomer?.name,
-          payment_method: paymentMethod,
-          subtotal: subtotalSatang,
-          discount: billDiscountSatang,
-          grand_total: grandTotalSatang,
-          tendered: paymentMethod === "CASH" ? tenderedSatang : 0,
-          change: changeSatang,
-          items: items.map((line) => ({
-            product_name: line.product_name,
-            qty: line.qty,
-            unit_price: line.unit_price,
-            net_total: line.net_total,
-          })),
-          occurred_at: occurredAtIso,
-          status: "COMPLETED",
-        };
-
-        offlineStorage.queueOfflineSale(offlineSale);
-        clearCart();
-        onSuccess(offlineReceipt, offlineSale);
-        onClose();
+        saveOfflineFallback(now, occurredAtIso);
         return;
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "บันทึกการขายไม่สำเร็จ";
       setErrorMessage(msg);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };

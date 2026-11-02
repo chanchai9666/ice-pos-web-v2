@@ -51,6 +51,7 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
       <input
         ref={inputRef}
         type="text"
+        autoFocus
         value={inputValue}
         onChange={handleChange}
         onKeyDown={handleKeyDown}

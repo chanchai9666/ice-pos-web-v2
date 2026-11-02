@@ -97,7 +97,13 @@ export const syncService = {
       });
 
       if (response && response.success) {
-        offlineStorage.clearOfflineSales();
+        if (!response.data.failed_sales || response.data.failed_sales === 0) {
+          offlineStorage.clearOfflineSales();
+        } else {
+          console.warn(
+            "Some sales failed during batch sync, keeping queue for safety"
+          );
+        }
         return response.data;
       }
     } catch (err) {

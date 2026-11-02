@@ -96,7 +96,7 @@ function PosContent() {
       />
 
       {/* Main Cashier Workspace (Hybrid Layout) */}
-      <main className="flex-1 overflow-hidden p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
+      <main className="no-print flex-1 overflow-hidden p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
         {/* Left Column (60% ~ 7 cols): Products Catalog & Scanner */}
         <section className="lg:col-span-7 xl:col-span-8 h-full overflow-hidden bg-base-100 border-2 border-base-300 rounded-3xl p-3 sm:p-4 shadow-sm flex flex-col">
           <ProductGrid
