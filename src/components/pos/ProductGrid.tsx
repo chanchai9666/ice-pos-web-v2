@@ -2,10 +2,12 @@
 
 import React, { useState, useMemo } from "react";
 import { Product, Category } from "../../types/api.ts";
+import { apiClient } from "../../services/apiClient.ts";
 import { CategoryTabs } from "./CategoryTabs.tsx";
 import { ProductCard } from "./ProductCard.tsx";
 import { BarcodeScannerInput } from "./BarcodeScannerInput.tsx";
 import { PackageX } from "lucide-react";
+import { useToast } from "../../context/ToastContext.tsx";
 
 interface ProductGridProps {
   products: Product[];
@@ -20,11 +22,12 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   onAddToCart,
   isLoading = false,
 }) => {
+  const { toast } = useToast();
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Barcode scan handler
-  const handleScanBarcode = (barcode: string) => {
+  const handleScanBarcode = async (barcode: string) => {
     const trimmed = barcode.trim().toLowerCase();
     const found = products.find(
       (p) =>
@@ -35,6 +38,21 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
 
     if (found) {
       onAddToCart(found);
+      return;
+    }
+
+    // Fallback: If not found in local cache, query API directly
+    try {
+      const res = await apiClient.get<{ data: Product; success: boolean }>(
+        `/products/barcode/${encodeURIComponent(barcode.trim())}`
+      );
+      if (res && res.data) {
+        onAddToCart(res.data);
+      } else {
+        toast.warning(`ไม่พบสินค้าสำหรับบาร์โค้ด: ${barcode}`);
+      }
+    } catch {
+      toast.warning(`ไม่พบสินค้าสำหรับบาร์โค้ด: ${barcode}`);
     }
   };
 
@@ -54,19 +72,21 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
 
   return (
     <div className="flex flex-col gap-4 h-full">
-      {/* Search & Barcode Input */}
-      <BarcodeScannerInput
-        onScanBarcode={handleScanBarcode}
-        onSearchChange={setSearchQuery}
-        searchQuery={searchQuery}
-      />
-
-      {/* Category Tabs */}
-      <CategoryTabs
-        categories={categories}
-        activeCategory={activeCategory}
-        onSelectCategory={setActiveCategory}
-      />
+      {/* Search & Category Filter Row */}
+      <div className="flex items-center gap-3 w-full">
+        <div className="flex-1 min-w-0">
+          <BarcodeScannerInput
+            onScanBarcode={handleScanBarcode}
+            onSearchChange={setSearchQuery}
+            searchQuery={searchQuery}
+          />
+        </div>
+        <CategoryTabs
+          categories={categories}
+          activeCategory={activeCategory}
+          onSelectCategory={setActiveCategory}
+        />
+      </div>
 
       {/* Products Grid */}
       <div className="flex-1 overflow-y-auto pr-1">

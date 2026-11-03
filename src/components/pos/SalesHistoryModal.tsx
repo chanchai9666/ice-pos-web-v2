@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Sale, Receipt } from "../../types/api.ts";
 import { apiClient } from "../../services/apiClient.ts";
 import { formatBaht } from "../../utils/currency.ts";
 import { VoidSaleDialog } from "./VoidSaleDialog.tsx";
 import { ReceiptModal } from "./ReceiptModal.tsx";
+import { useToast } from "../../context/ToastContext.tsx";
 import {
   History,
   Printer,
@@ -14,6 +15,12 @@ import {
   Search,
   RefreshCw,
   AlertCircle,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Package,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface SalesHistoryModalProps {
@@ -25,10 +32,24 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { toast } = useToast();
   const [sales, setSales] = useState<Sale[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Date Range Filter
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  // Expand Items state
+  const [expandedSaleIds, setExpandedSaleIds] = useState<Set<string>>(
+    new Set()
+  );
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Void Dialog State
   const [voidingSale, setVoidingSale] = useState<Sale | null>(null);
@@ -37,47 +58,111 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
   // Reprint Receipt State
   const [reprintReceipt, setReprintReceipt] = useState<Receipt | null>(null);
 
-  const loadSales = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await apiClient.get<{ data: Sale[]; success: boolean }>(
-        "/sales?limit=50"
-      );
-      if (res && res.data) {
-        setSales(res.data);
+  const loadSales = useCallback(
+    async (start?: string, end?: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.append("limit", "200");
+        const s = start !== undefined ? start : startDate;
+        const e = end !== undefined ? end : endDate;
+        if (s) params.append("start_date", s);
+        if (e) params.append("end_date", e);
+
+        const res = await apiClient.get<{ data: Sale[]; success: boolean }>(
+          `/sales?${params.toString()}`
+        );
+        if (res && res.data) {
+          setSales(res.data);
+        }
+      } catch (err: unknown) {
+        console.error("Failed to load sales history:", err);
+        setError("ไม่สามารถดึงประวัติการขายได้ (ตรวจสอบการเชื่อมต่อ API)");
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err: unknown) {
-      console.error("Failed to load sales history:", err);
-      setError("ไม่สามารถดึงประวัติการขายได้ (ตรวจสอบการเชื่อมต่อ API)");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    [startDate, endDate]
+  );
 
   useEffect(() => {
-    let active = true;
     if (isOpen) {
-      apiClient
-        .get<{ data: Sale[]; success: boolean }>("/sales?limit=50")
-        .then((res) => {
-          if (active && res && res.data) {
-            setSales(res.data);
-            setIsLoading(false);
-          }
-        })
-        .catch((err) => {
-          if (active) {
-            console.error("Failed to load sales history:", err);
-            setError("ไม่สามารถดึงประวัติการขายได้ (ตรวจสอบการเชื่อมต่อ API)");
-            setIsLoading(false);
-          }
-        });
+      loadSales();
     }
-    return () => {
-      active = false;
+  }, [isOpen, loadSales]);
+
+  // Preset Date Range Helpers
+  const handlePreset = (
+    type: "today" | "yesterday" | "7days" | "month" | "all"
+  ) => {
+    setCurrentPage(1);
+    const now = new Date();
+    const formatDate = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
     };
-  }, [isOpen]);
+
+    if (type === "all") {
+      setStartDate("");
+      setEndDate("");
+      loadSales("", "");
+      return;
+    }
+
+    if (type === "today") {
+      const todayStr = formatDate(now);
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+      loadSales(todayStr, todayStr);
+      return;
+    }
+
+    if (type === "yesterday") {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const yStr = formatDate(y);
+      setStartDate(yStr);
+      setEndDate(yStr);
+      loadSales(yStr, yStr);
+      return;
+    }
+
+    if (type === "7days") {
+      const past = new Date(now);
+      past.setDate(past.getDate() - 6);
+      const pastStr = formatDate(past);
+      const todayStr = formatDate(now);
+      setStartDate(pastStr);
+      setEndDate(todayStr);
+      loadSales(pastStr, todayStr);
+      return;
+    }
+
+    if (type === "month") {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const firstStr = formatDate(firstDay);
+      const todayStr = formatDate(now);
+      setStartDate(firstStr);
+      setEndDate(todayStr);
+      loadSales(firstStr, todayStr);
+      return;
+    }
+  };
+
+  const toggleExpand = (saleId: string) => {
+    setExpandedSaleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(saleId)) {
+        next.delete(saleId);
+      } else {
+        next.add(saleId);
+      }
+      return next;
+    });
+  };
 
   const handleVoidConfirm = async (reason: string) => {
     if (!voidingSale) return;
@@ -85,10 +170,11 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
     try {
       await apiClient.post(`/sales/${voidingSale.id}/void`, { reason });
       setVoidingSale(null);
+      toast.success("ยกเลิกบิลการขายเรียบร้อยแล้ว");
       await loadSales(); // reload list
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "ยกเลิกบิลไม่สำเร็จ";
-      alert(`เกิดข้อผิดพลาด: ${msg}`);
+      toast.error(`เกิดข้อผิดพลาด: ${msg}`);
     } finally {
       setIsVoidLoading(false);
     }
@@ -96,55 +182,69 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
 
   const handleReprint = async (sale: Sale) => {
     try {
-      // Try fetch receipt from server
+      // Fetch receipt directly from server API using sale_no
       const res = await apiClient.get<{ data: Receipt; success: boolean }>(
         `/sales/receipt/${sale.sale_no}`
       );
       if (res && res.data) {
         setReprintReceipt(res.data);
-        return;
+      } else {
+        toast.warning("ไม่พบข้อมูลใบเสร็จรับเงินจากระบบ");
       }
-    } catch {
-      // Fallback create receipt from sale
-      const receipt: Receipt = {
-        receipt_no: `REC-${sale.sale_no}`,
-        sale_no: sale.sale_no,
-        cashier_name: sale.cashier_name,
-        customer_name: sale.customer_name,
-        payment_method: sale.payment_method,
-        subtotal: sale.subtotal,
-        discount: sale.bill_discount,
-        grand_total: sale.grand_total,
-        tendered: sale.tendered_amount,
-        change: sale.change_amount,
-        items: (sale.lines || []).map((l) => ({
-          product_name: l.product_name,
-          qty: l.qty,
-          unit_price: l.unit_price,
-          net_total: l.net_total,
-        })),
-        occurred_at: sale.occurred_at || new Date().toISOString(),
-        status: sale.status,
-      };
-      setReprintReceipt(receipt);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "ไม่สามารถดึงข้อมูลใบเสร็จจากเซิร์ฟเวอร์ได้";
+      toast.error(`เกิดข้อผิดพลาด: ${msg}`);
     }
   };
 
-  if (!isOpen) return null;
+  // Filter Sales client-side
+  const filtered = useMemo(() => {
+    return sales.filter((s) => {
+      // Search by bill no, customer name, or purchased product name
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const matchesSaleNo = s.sale_no.toLowerCase().includes(q);
+        const matchesCustomer =
+          s.customer_name && s.customer_name.toLowerCase().includes(q);
+        const matchesProduct = (s.lines || []).some((item) =>
+          item.product_name.toLowerCase().includes(q)
+        );
 
-  const filtered = sales.filter((s) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      s.sale_no.toLowerCase().includes(q) ||
-      (s.customer_name && s.customer_name.toLowerCase().includes(q))
-    );
-  });
+        if (!matchesSaleNo && !matchesCustomer && !matchesProduct) {
+          return false;
+        }
+      }
+
+      // Date Range Filter (fallback)
+      if (startDate || endDate) {
+        const saleDateStr = s.occurred_at ? s.occurred_at.slice(0, 10) : "";
+        if (startDate && saleDateStr && saleDateStr < startDate) {
+          return false;
+        }
+        if (endDate && saleDateStr && saleDateStr > endDate) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [sales, search, startDate, endDate]);
+
+  // Pagination calculation
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPageClamped = Math.min(currentPage, totalPages);
+  const startIndex = (currentPageClamped - 1) * pageSize;
+  const paginatedSales = filtered.slice(startIndex, startIndex + pageSize);
+
+  if (!isOpen) return null;
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-xs">
-        <div className="card bg-base-100 w-full max-w-4xl border-2 border-base-300 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="card bg-base-100 w-full max-w-4xl border-2 border-base-300 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[92vh]">
           {/* Header */}
           <div className="p-4 sm:p-5 border-b-2 border-base-200 flex justify-between items-center bg-base-200/50">
             <div className="flex items-center gap-2.5">
@@ -154,7 +254,8 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
                   ประวัติรายการขาย
                 </h3>
                 <p className="text-sm font-semibold text-base-content/60">
-                  ค้นหาบิลย้อนหลัง สั่งพิมพ์ใบเสร็จซ้ำ หรือกดยกเลิกบิล
+                  ค้นหาบิลย้อนหลัง ดูรายการสินค้า สั่งพิมพ์ใบเสร็จซ้ำ
+                  หรือกดยกเลิกบิล
                 </p>
               </div>
             </div>
@@ -168,30 +269,130 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
             </button>
           </div>
 
-          {/* Search bar & Refresh */}
-          <div className="p-4 border-b border-base-200 flex gap-3">
-            <div className="relative flex-1">
-              <Search className="w-6 h-6 absolute left-4 top-1/2 -translate-y-1/2 text-base-content/50" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="ค้นหาเลขที่บิล หรือ ชื่อลูกค้า..."
-                className="input input-bordered w-full h-14 pl-12 pr-4 text-xl font-bold rounded-2xl border-2"
-              />
+          {/* Search bar & Filter Toolbar */}
+          <div className="p-4 border-b border-base-200 space-y-3 bg-base-100">
+            {/* Top row: Search input & Refresh button */}
+            <div className="flex gap-2.5">
+              <div className="relative flex-1">
+                <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-base-content/40 pointer-events-none" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="ค้นหาเลขที่บิล, ชื่อลูกค้า หรือชื่อสินค้าในบิล..."
+                  className="input input-bordered w-full h-11 pl-10 pr-9 text-sm sm:text-base font-semibold rounded-xl border-base-300 focus:border-primary"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setCurrentPage(1);
+                    }}
+                    className="btn btn-ghost btn-circle btn-xs absolute right-2.5 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content"
+                    title="ล้างคำค้นหา"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => loadSales()}
+                disabled={isLoading}
+                className="btn btn-outline border-base-300 hover:border-primary hover:bg-primary/10 hover:text-primary h-11 px-4 rounded-xl font-bold gap-2 text-sm shrink-0 transition-colors"
+                title="รีเฟรชรายการ"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
+                />
+                <span className="hidden sm:inline">รีเฟรช</span>
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={loadSales}
-              disabled={isLoading}
-              className="btn btn-outline h-14 px-5 rounded-2xl font-bold gap-2 text-base"
-              title="รีเฟรชรายการ"
-            >
-              <RefreshCw
-                className={`w-5 h-5 ${isLoading ? "animate-spin" : ""}`}
-              />
-              <span>รีเฟรช</span>
-            </button>
+
+            {/* Bottom row: Expanded Date Range Capsule & Preset Chips */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-0.5">
+              {/* Date Capsule Group (Expanded, spacious, never breaks lines) */}
+              <div className="inline-flex items-center bg-base-200/60 p-1 sm:p-1.5 rounded-xl border border-base-300 self-start shrink-0 shadow-2xs">
+                <div className="flex items-center gap-1.5 px-2.5 text-xs sm:text-sm font-bold text-base-content/80 whitespace-nowrap">
+                  <Calendar className="w-4 h-4 text-primary" />
+                  <span>ช่วงวันที่:</span>
+                </div>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setCurrentPage(1);
+                    loadSales(e.target.value, endDate);
+                  }}
+                  className="input input-sm h-9 sm:h-9.5 w-36 sm:w-40 bg-base-100 border border-base-300 rounded-lg text-xs sm:text-sm font-semibold focus:outline-primary px-2.5 sm:px-3 text-center sm:text-left"
+                />
+                <span className="text-xs sm:text-sm text-base-content/50 px-2 font-bold select-none">
+                  ถึง
+                </span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setCurrentPage(1);
+                    loadSales(startDate, e.target.value);
+                  }}
+                  className="input input-sm h-9 sm:h-9.5 w-36 sm:w-40 bg-base-100 border border-base-300 rounded-lg text-xs sm:text-sm font-semibold focus:outline-primary px-2.5 sm:px-3 text-center sm:text-left"
+                />
+              </div>
+
+              {/* Quick Preset Chips */}
+              <div className="flex items-center gap-1.5 flex-wrap overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => handlePreset("today")}
+                  className={`btn btn-sm h-9 sm:h-9.5 px-3 rounded-xl font-bold text-xs sm:text-sm transition-all ${
+                    startDate && startDate === endDate
+                      ? "btn-primary shadow-xs"
+                      : "btn-ghost bg-base-200/60 hover:bg-base-200 text-base-content/80"
+                  }`}
+                >
+                  วันนี้
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePreset("yesterday")}
+                  className="btn btn-ghost bg-base-200/60 hover:bg-base-200 btn-sm h-9 sm:h-9.5 px-3 rounded-xl font-bold text-xs sm:text-sm text-base-content/80"
+                >
+                  เมื่อวาน
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePreset("7days")}
+                  className="btn btn-ghost bg-base-200/60 hover:bg-base-200 btn-sm h-9 sm:h-9.5 px-3 rounded-xl font-bold text-xs sm:text-sm text-base-content/80"
+                >
+                  7 วันล่าสุด
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePreset("month")}
+                  className="btn btn-ghost bg-base-200/60 hover:bg-base-200 btn-sm h-9 sm:h-9.5 px-3 rounded-xl font-bold text-xs sm:text-sm text-base-content/80"
+                >
+                  เดือนนี้
+                </button>
+                {(startDate || endDate) && (
+                  <button
+                    type="button"
+                    onClick={() => handlePreset("all")}
+                    className="btn btn-ghost hover:bg-error/10 btn-sm h-9 sm:h-9.5 px-2.5 rounded-xl font-bold text-xs sm:text-sm text-error ml-1"
+                    title="ล้างช่วงวันที่ทั้งหมด"
+                  >
+                    ล้างตัวกรอง
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Error alert */}
@@ -203,7 +404,7 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
           )}
 
           {/* Table List */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <span className="loading loading-spinner loading-lg text-primary"></span>
@@ -212,35 +413,41 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
             ) : filtered.length === 0 ? (
               <div className="text-center py-16 text-base-content/50">
                 <p className="text-2xl font-bold">ไม่พบประวัติรายการขาย</p>
+                <p className="text-sm font-semibold mt-1">
+                  ลองเปลี่ยนเงื่อนไขค้นหา หรือช่วงวันที่
+                </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filtered.map((sale) => {
-                  const isVoided = sale.status === "VOIDED";
-                  const dateStr = new Date(sale.occurred_at).toLocaleString(
-                    "th-TH",
-                    {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    }
-                  );
+              paginatedSales.map((sale) => {
+                const isVoided = sale.status === "VOIDED";
+                const isExpanded = expandedSaleIds.has(sale.id);
+                const itemsCount = sale.lines ? sale.lines.length : 0;
+                const dateStr = new Date(sale.occurred_at).toLocaleString(
+                  "th-TH",
+                  {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  }
+                );
 
-                  return (
-                    <div
-                      key={sale.id}
-                      className={`p-4 rounded-2xl border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
-                        isVoided
-                          ? "bg-error/5 border-error/30 opacity-75"
-                          : "bg-base-100 border-base-300 hover:border-primary/50 shadow-xs"
-                      }`}
-                    >
+                return (
+                  <div
+                    key={sale.id}
+                    className={`rounded-2xl border transition-all overflow-hidden ${
+                      isVoided
+                        ? "bg-error/5 border-error/25 opacity-80"
+                        : "bg-base-100 border-base-300 hover:border-primary/40 shadow-xs hover:shadow-sm"
+                    }`}
+                  >
+                    {/* Main Sale Header Row */}
+                    <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl font-black font-mono">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-base sm:text-lg font-black font-mono tracking-tight">
                             {sale.sale_no}
                           </span>
                           <span
-                            className={`badge text-xs font-black py-2 px-2.5 rounded-lg ${
+                            className={`badge badge-sm text-[11px] font-bold py-1.5 px-2 rounded-md ${
                               isVoided
                                 ? "badge-error text-white"
                                 : "badge-success text-white"
@@ -248,36 +455,67 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
                           >
                             {isVoided ? "ยกเลิกแล้ว" : "สำเร็จ"}
                           </span>
+
+                          {/* Items count button / pill */}
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(sale.id)}
+                            className={`btn btn-xs rounded-lg font-bold gap-1 transition-all border ${
+                              isExpanded
+                                ? "bg-primary text-white border-primary shadow-2xs"
+                                : "bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
+                            }`}
+                            title="กดเพื่อดูรายการสินค้า"
+                          >
+                            <Package className="w-3.5 h-3.5" />
+                            <span>{itemsCount} รายการ</span>
+                            {isExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )}
+                          </button>
                         </div>
-                        <div className="text-sm font-semibold text-base-content/60">
-                          {dateStr} •{" "}
-                          {sale.payment_method === "CASH"
-                            ? "เงินสด"
-                            : "เงินเชื่อ"}
-                          {sale.customer_name
-                            ? ` • ลูกค้า: ${sale.customer_name}`
-                            : ""}
+
+                        <div className="text-xs sm:text-sm font-medium text-base-content/60 flex items-center gap-1.5 flex-wrap">
+                          <span>{dateStr}</span>
+                          <span className="text-base-content/30">•</span>
+                          <span>
+                            {sale.payment_method === "CASH"
+                              ? "💵 เงินสด"
+                              : "📝 เงินเชื่อ"}
+                          </span>
+                          {sale.customer_name && (
+                            <>
+                              <span className="text-base-content/30">•</span>
+                              <span className="font-semibold text-base-content/80">
+                                ลูกค้า: {sale.customer_name}
+                              </span>
+                            </>
+                          )}
                         </div>
+
                         {isVoided && sale.void_reason && (
-                          <div className="text-xs font-semibold text-error">
+                          <div className="text-xs font-semibold text-error pt-0.5">
                             เหตุผลที่ยกเลิก: {sale.void_reason}
                           </div>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between sm:justify-end gap-4">
-                        <span className="text-2xl font-black text-primary">
+                      {/* Right: Amount & Actions */}
+                      <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
+                        <span className="text-xl sm:text-2xl font-black text-primary font-mono tracking-tight">
                           {formatBaht(sale.grand_total)}
                         </span>
 
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleReprint(sale)}
-                            className="btn btn-outline btn-sm h-11 px-3.5 rounded-xl font-bold gap-1.5"
+                            className="btn btn-outline border-base-300 hover:border-primary hover:bg-primary hover:text-white btn-sm h-9.5 px-3 rounded-xl font-bold gap-1.5 text-xs sm:text-sm transition-all"
                             title="พิมพ์ใบเสร็จซ้ำ"
                           >
-                            <Printer className="w-4 h-4" />
+                            <Printer className="w-3.5 h-3.5" />
                             <span>พิมพ์ซ้ำ</span>
                           </button>
 
@@ -285,21 +523,140 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setVoidingSale(sale)}
-                              className="btn btn-ghost btn-sm h-11 px-3 text-error hover:bg-error/10 rounded-xl font-bold gap-1"
+                              className="btn btn-ghost hover:bg-error/10 text-error btn-sm h-9.5 px-2.5 rounded-xl font-bold gap-1 text-xs sm:text-sm"
                               title="ยกเลิกบิลนี้"
                             >
-                              <Ban className="w-4 h-4" />
+                              <Ban className="w-3.5 h-3.5" />
                               <span>ยกเลิก</span>
                             </button>
                           )}
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Expandable Purchased Items List */}
+                    {isExpanded && (
+                      <div className="px-3.5 pb-3.5 pt-1 bg-base-200/40 border-t border-base-200">
+                        <div className="text-xs font-bold text-base-content/60 mb-2 flex items-center gap-1.5">
+                          <Package className="w-3.5 h-3.5 text-primary" />
+                          <span>
+                            รายการสินค้าที่ซื้อ ({itemsCount} รายการ):
+                          </span>
+                        </div>
+
+                        {sale.lines && sale.lines.length > 0 ? (
+                          <div className="bg-base-100 rounded-xl border border-base-200 divide-y divide-base-200 overflow-hidden text-xs sm:text-sm shadow-2xs">
+                            {sale.lines.map((line, idx) => (
+                              <div
+                                key={line.id || idx}
+                                className="p-2.5 flex items-center justify-between hover:bg-base-200/40 transition-colors"
+                              >
+                                <div className="flex-1 pr-3">
+                                  <div className="font-bold text-base-content">
+                                    {line.product_name}
+                                  </div>
+                                  <div className="text-[11px] text-base-content/60 font-medium">
+                                    {line.qty} × {formatBaht(line.unit_price)}
+                                    {line.line_discount &&
+                                    line.line_discount > 0
+                                      ? ` (ลด ${formatBaht(line.line_discount)})`
+                                      : ""}
+                                  </div>
+                                </div>
+                                <div className="font-black text-right text-base-content font-mono">
+                                  {formatBaht(line.net_total)}
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Bill discount summary row if exists */}
+                            {sale.bill_discount > 0 && (
+                              <div className="p-2.5 bg-warning/10 flex items-center justify-between text-warning-content font-bold text-xs sm:text-sm">
+                                <span>ส่วนลดท้ายบิล:</span>
+                                <span>-{formatBaht(sale.bill_discount)}</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-base-content/50 italic py-1">
+                            ไม่มีข้อมูลรายการสินค้าย่อยในบิลนี้
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
+
+          {/* Pagination Footer */}
+          {filtered.length > 0 && (
+            <div className="p-3.5 sm:p-4 border-t-2 border-base-200 bg-base-200/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs sm:text-sm font-semibold text-base-content/70 whitespace-nowrap">
+                แสดง{" "}
+                <span className="font-bold text-base-content font-mono">
+                  {startIndex + 1} -{" "}
+                  {Math.min(startIndex + pageSize, filtered.length)}
+                </span>{" "}
+                จากทั้งหมด{" "}
+                <span className="font-bold text-base-content font-mono">
+                  {filtered.length}
+                </span>{" "}
+                รายการ
+              </div>
+
+              <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-end w-full sm:w-auto">
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-1.5 text-xs font-bold text-base-content/70 whitespace-nowrap">
+                  <span className="whitespace-nowrap">แสดงหน้าละ:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="select select-bordered select-xs rounded-lg font-bold bg-base-100 border-base-300 h-8"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+
+                {/* Page Navigation Buttons */}
+                <div className="join shadow-2xs border border-base-300 rounded-xl overflow-hidden bg-base-100">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPageClamped <= 1}
+                    className="btn btn-xs sm:btn-sm join-item font-bold gap-1 bg-base-100 hover:bg-base-200 border-none disabled:bg-base-200/50"
+                    title="หน้าก่อนหน้า"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">ก่อนหน้า</span>
+                  </button>
+
+                  <div className="join-item px-3 flex items-center justify-center text-xs sm:text-sm font-mono font-bold bg-base-100 border-x border-base-200 select-none">
+                    {currentPageClamped} / {totalPages}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    disabled={currentPageClamped >= totalPages}
+                    className="btn btn-xs sm:btn-sm join-item font-bold gap-1 bg-base-100 hover:bg-base-200 border-none disabled:bg-base-200/50"
+                    title="หน้าถัดไป"
+                  >
+                    <span className="hidden sm:inline">ถัดไป</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -312,11 +669,12 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
         isLoading={isVoidLoading}
       />
 
-      {/* Reprint Receipt Modal */}
+      {/* Reprint Receipt Modal (isReprint=true: hides "start new bill" button) */}
       <ReceiptModal
         isOpen={Boolean(reprintReceipt)}
         receipt={reprintReceipt}
         onClose={() => setReprintReceipt(null)}
+        isReprint={true}
       />
     </>
   );

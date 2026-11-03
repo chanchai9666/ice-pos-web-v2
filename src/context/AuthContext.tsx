@@ -8,7 +8,12 @@ import React, {
   useCallback,
 } from "react";
 import { User, AuthDataResponse, MeData } from "../types/api.ts";
-import { apiClient, getToken, setToken } from "../services/apiClient.ts";
+import {
+  apiClient,
+  getToken,
+  setToken,
+  setRefreshToken,
+} from "../services/apiClient.ts";
 
 interface AuthContextType {
   user: User | null;
@@ -58,10 +63,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return false;
   });
 
-  // Monitor network status
+  // Monitor network status passively with window online/offline events
   useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
+    const handleOnline = () => {
+      setIsOffline(false);
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
@@ -107,9 +116,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           pin,
         });
         if (res && res.success && res.data) {
-          const { access_token, user: userData } = res.data;
+          const { access_token, refresh_token, user: userData } = res.data;
           setToken(access_token);
           setTokenState(access_token);
+          if (refresh_token) {
+            setRefreshToken(refresh_token);
+          }
           setUser(userData);
           localStorage.setItem(CACHED_USER_KEY, JSON.stringify(userData));
           setIsLoading(false);
@@ -139,9 +151,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           password,
         });
         if (res && res.success && res.data) {
-          const { access_token, user: userData } = res.data;
+          const { access_token, refresh_token, user: userData } = res.data;
           setToken(access_token);
           setTokenState(access_token);
+          if (refresh_token) {
+            setRefreshToken(refresh_token);
+          }
           setUser(userData);
           localStorage.setItem(CACHED_USER_KEY, JSON.stringify(userData));
           setIsLoading(false);
@@ -169,6 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     } finally {
       setToken(null);
+      setRefreshToken(null);
       setTokenState(null);
       setUser(null);
       localStorage.removeItem(CACHED_USER_KEY);

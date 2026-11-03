@@ -9,12 +9,14 @@ interface ReceiptModalProps {
   isOpen: boolean;
   receipt: Receipt | null;
   onClose: () => void;
+  isReprint?: boolean;
 }
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   isOpen,
   receipt,
   onClose,
+  isReprint = false,
 }) => {
   if (!isOpen || !receipt) return null;
 
@@ -28,10 +30,21 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         {/* Header (hidden in print) */}
         <div className="no-print p-4 sm:p-5 border-b-2 border-base-200 flex justify-between items-center bg-base-200/50">
           <div className="flex items-center gap-2">
-            <CheckCircle className="w-7 h-7 text-success" />
-            <h3 className="text-2xl font-black text-base-content">
-              บันทึกการขายสำเร็จ
-            </h3>
+            {isReprint ? (
+              <>
+                <Printer className="w-7 h-7 text-primary" />
+                <h3 className="text-2xl font-black text-base-content">
+                  พิมพ์ใบเสร็จซ้ำ
+                </h3>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-7 h-7 text-success" />
+                <h3 className="text-2xl font-black text-base-content">
+                  บันทึกการขายสำเร็จ
+                </h3>
+              </>
+            )}
           </div>
           <button
             type="button"
@@ -59,13 +72,23 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <span>🖨️ สั่งพิมพ์ใบเสร็จ</span>
           </button>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn btn-outline h-16 px-6 text-xl font-bold rounded-2xl border-2"
-          >
-            เริ่มบิลใหม่
-          </button>
+          {isReprint ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-outline h-16 px-8 text-xl font-bold rounded-2xl border-2"
+            >
+              ปิด
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-outline h-16 px-6 text-xl font-bold rounded-2xl border-2"
+            >
+              เริ่มบิลใหม่
+            </button>
+          )}
         </div>
       </div>
     </div>

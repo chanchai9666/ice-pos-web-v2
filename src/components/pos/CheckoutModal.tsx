@@ -3,7 +3,13 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useAuth } from "../../context/AuthContext.tsx";
 import { useCart } from "../../context/CartContext.tsx";
-import { Customer, CheckoutResponse, Receipt, Sale } from "../../types/api.ts";
+import {
+  Customer,
+  CheckoutResponse,
+  Receipt,
+  Sale,
+  SaleItem,
+} from "../../types/api.ts";
 import { apiClient } from "../../services/apiClient.ts";
 import { offlineStorage } from "../../services/offlineStorage.ts";
 import {
@@ -50,6 +56,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     null
   );
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -77,7 +84,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setTenderedInput(amount.toString());
   };
 
-  const handleConfirmCheckout = async () => {
+  const handleConfirmCheckout = () => {
     if (isSubmittingRef.current || isSubmitting) return;
     setErrorMessage(null);
 
@@ -91,107 +98,137 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
+    // Open confirmation dialog before completing checkout
+    setIsConfirmOpen(true);
+  };
+
+  const saveOfflineFallback = (now: Date) => {
+    const localSaleId = crypto.randomUUID();
+    const dateCode = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const randCode = Math.floor(1000 + Math.random() * 9000);
+    const localSaleNo = `OFF-${dateCode}-${randCode}`;
+    const localReceiptNo = `REC-${dateCode}-${randCode}`;
+    const cashierName =
+      user?.display_name || user?.full_name || user?.username || "แคชเชียร์";
+
+    // Format lines to ensure ID and foreign key are populated for backend batch sync
+    const mappedLines: SaleItem[] = items.map((line) => ({
+      ...line,
+      id: line.id || crypto.randomUUID(),
+      sale_id: localSaleId,
+    }));
+
+    const offlineSale: Sale = {
+      id: localSaleId,
+      sale_no: localSaleNo,
+      cashier_id: user?.id || "cashier-1",
+      cashier_name: cashierName,
+      customer_id: selectedCustomer?.id,
+      customer_name: selectedCustomer?.name,
+      payment_method: paymentMethod,
+      subtotal: subtotalSatang,
+      bill_discount: billDiscountSatang,
+      grand_total: grandTotalSatang,
+      tendered_amount: paymentMethod === "CASH" ? tenderedSatang : 0,
+      change_amount: changeSatang,
+      credit_amount: paymentMethod === "CREDIT" ? grandTotalSatang : 0,
+      status: "COMPLETED",
+      lines: mappedLines,
+      occurred_at: now.toISOString(),
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    };
+
+    const offlineReceipt: Receipt = {
+      receipt_no: localReceiptNo,
+      sale_no: localSaleNo,
+      cashier_name: cashierName,
+      customer_name: selectedCustomer?.name,
+      payment_method: paymentMethod,
+      subtotal: subtotalSatang,
+      discount: billDiscountSatang,
+      grand_total: grandTotalSatang,
+      tendered: paymentMethod === "CASH" ? tenderedSatang : 0,
+      change: changeSatang,
+      items: items.map((line) => ({
+        product_name: line.product_name,
+        qty: line.qty,
+        unit_price: line.unit_price,
+        net_total: line.net_total,
+      })),
+      occurred_at: now.toISOString(),
+      status: "COMPLETED",
+    };
+
+    offlineStorage.queueOfflineSale(offlineSale);
+    clearCart();
+    setIsConfirmOpen(false);
+    onSuccess(offlineReceipt, offlineSale);
+    onClose();
+  };
+
+  const executeCheckout = async () => {
+    if (isSubmittingRef.current || isSubmitting) return;
     isSubmittingRef.current = true;
     setIsSubmitting(true);
 
-    const saveOfflineFallback = (now: Date, occurredAtIso: string) => {
-      const localSaleId = crypto.randomUUID();
-      const dateCode = now.toISOString().slice(0, 10).replace(/-/g, "");
-      const randCode = Math.floor(1000 + Math.random() * 9000);
-      const localSaleNo = `OFF-${dateCode}-${randCode}`;
-      const localReceiptNo = `REC-${dateCode}-${randCode}`;
+    const now = new Date();
 
-      const offlineSale: Sale = {
-        id: localSaleId,
-        sale_no: localSaleNo,
-        cashier_id: user?.id || "cashier-1",
-        cashier_name: user?.full_name || "แคชเชียร์",
-        customer_id: selectedCustomer?.id,
-        customer_name: selectedCustomer?.name,
-        payment_method: paymentMethod,
-        subtotal: subtotalSatang,
-        bill_discount: billDiscountSatang,
-        grand_total: grandTotalSatang,
-        tendered_amount: paymentMethod === "CASH" ? tenderedSatang : 0,
-        change_amount: changeSatang,
-        credit_amount: paymentMethod === "CREDIT" ? grandTotalSatang : 0,
-        status: "COMPLETED",
-        lines: items,
-        occurred_at: occurredAtIso,
-      };
-
-      const offlineReceipt: Receipt = {
-        receipt_no: localReceiptNo,
-        sale_no: localSaleNo,
-        cashier_name: user?.full_name || "แคชเชียร์",
-        customer_name: selectedCustomer?.name,
-        payment_method: paymentMethod,
-        subtotal: subtotalSatang,
-        discount: billDiscountSatang,
-        grand_total: grandTotalSatang,
-        tendered: paymentMethod === "CASH" ? tenderedSatang : 0,
-        change: changeSatang,
-        items: items.map((line) => ({
-          product_name: line.product_name,
-          qty: line.qty,
-          unit_price: line.unit_price,
-          net_total: line.net_total,
-        })),
-        occurred_at: occurredAtIso,
-        status: "COMPLETED",
-      };
-
-      offlineStorage.queueOfflineSale(offlineSale);
-      clearCart();
-      onSuccess(offlineReceipt, offlineSale);
-      onClose();
-    };
+    // If client is known to be offline, directly process offline fallback
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      try {
+        saveOfflineFallback(now);
+      } finally {
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+      }
+      return;
+    }
 
     try {
-      const now = new Date();
-      const occurredAtIso = now.toISOString();
+      const checkoutPayload = {
+        lines: items,
+        payment_method: paymentMethod,
+        tendered_amount: paymentMethod === "CASH" ? tenderedSatang : 0,
+        bill_discount: billDiscountSatang,
+        customer_id: selectedCustomer ? selectedCustomer.id : undefined,
+      };
 
-      if (navigator.onLine) {
-        try {
-          // ONLINE: Call POST /sales API
-          const checkoutPayload = {
-            lines: items,
-            payment_method: paymentMethod,
-            tendered_amount: paymentMethod === "CASH" ? tenderedSatang : 0,
-            bill_discount: billDiscountSatang,
-            customer_id: selectedCustomer ? selectedCustomer.id : undefined,
-          };
+      const response = await apiClient.post<CheckoutResponse>(
+        "/sales",
+        checkoutPayload
+      );
 
-          const response = await apiClient.post<CheckoutResponse>(
-            "/sales",
-            checkoutPayload
-          );
-
-          if (response && response.success && response.data) {
-            clearCart();
-            onSuccess(response.data.receipt, response.data.sale);
-            onClose();
-            return;
-          } else {
-            throw new Error(
-              response.message || "เกิดข้อผิดพลาดในการบันทึกการขาย"
-            );
-          }
-        } catch (onlineErr) {
-          console.warn(
-            "Online POST /sales failed, fallback to offline queue:",
-            onlineErr
-          );
-          saveOfflineFallback(now, occurredAtIso);
-          return;
-        }
+      if (response && response.success && response.data) {
+        clearCart();
+        setIsConfirmOpen(false);
+        onSuccess(response.data.receipt, response.data.sale);
+        onClose();
       } else {
-        saveOfflineFallback(now, occurredAtIso);
-        return;
+        throw new Error(response?.message || "เกิดข้อผิดพลาดในการบันทึกการขาย");
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "บันทึกการขายไม่สำเร็จ";
-      setErrorMessage(msg);
+      // If network failure occurred (backend down or unreachable), fallback to offline queue
+      const isNetworkError =
+        (typeof navigator !== "undefined" && !navigator.onLine) ||
+        (err instanceof Error &&
+          (err.name === "TypeError" ||
+            err.message.includes("fetch") ||
+            err.message.includes("Network") ||
+            err.message.includes("Failed to fetch")));
+
+      if (isNetworkError) {
+        console.warn(
+          "Network request failed, falling back to offline queue:",
+          err
+        );
+        saveOfflineFallback(now);
+      } else {
+        const msg =
+          err instanceof Error ? err.message : "บันทึกการขายไม่สำเร็จ";
+        setErrorMessage(msg);
+        setIsConfirmOpen(false);
+      }
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -231,17 +268,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
-            {/* Error Message */}
-            {errorMessage && (
-              <div className="alert alert-error rounded-2xl text-base font-bold flex items-center gap-2 shadow-sm">
-                <AlertCircle className="w-6 h-6 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {/* Total to pay banner */}
-            <div className="bg-primary/10 border-2 border-primary/20 rounded-2xl p-4 flex justify-between items-center">
+          {/* Pinned Total to pay banner (Always visible even when scrolled) */}
+          <div className="px-4 sm:px-6 pt-4 pb-2 bg-base-100 z-10 border-b border-base-200">
+            <div className="bg-primary/10 border-2 border-primary/20 rounded-2xl p-4 flex justify-between items-center shadow-xs">
               <div>
                 <span className="text-base font-bold text-base-content/70">
                   ยอดที่ต้องชำระ:
@@ -254,6 +283,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 {formatBaht(grandTotalSatang)}
               </span>
             </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+            {/* Error Message */}
+            {errorMessage && (
+              <div className="alert alert-error rounded-2xl text-base font-bold flex items-center gap-2 shadow-sm">
+                <AlertCircle className="w-6 h-6 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
 
             {/* Payment Method Selector (CASH vs CREDIT) */}
             <div className="grid grid-cols-2 gap-3">
@@ -290,6 +329,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 {/* Banknote quick buttons */}
                 <BanknoteButtons
                   totalBaht={totalBaht}
+                  currentAmount={parseFloat(tenderedInput) || 0}
                   onSelectAmount={handleBanknoteSelect}
                 />
 
@@ -428,6 +468,104 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         onSelectCustomer={setSelectedCustomer}
         selectedCustomerId={selectedCustomer?.id}
       />
+
+      {/* Checkout Confirmation Dialog */}
+      {isConfirmOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="card bg-base-100 w-full max-w-md border-2 border-base-300 shadow-2xl rounded-3xl overflow-hidden p-5 sm:p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-success/15 text-success flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <div>
+                <h4 className="text-xl sm:text-2xl font-black text-base-content">
+                  ยืนยันบันทึกการขาย
+                </h4>
+                <p className="text-xs sm:text-sm font-semibold text-base-content/60">
+                  ตรวจสอบข้อมูลการชำระเงินก่อนยืนยัน
+                </p>
+              </div>
+            </div>
+
+            {/* Summary Box */}
+            <div className="bg-base-200/50 rounded-2xl p-4 border border-base-200 space-y-3">
+              <div className="flex justify-between items-center text-sm font-semibold text-base-content/70">
+                <span>ยอดที่ต้องชำระ ({items.length} รายการ):</span>
+                <span className="text-xl font-black text-primary font-mono">
+                  {formatBaht(grandTotalSatang)}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-sm font-semibold text-base-content/70">
+                <span>รูปแบบการชำระ:</span>
+                <span className="font-bold text-base-content">
+                  {paymentMethod === "CASH"
+                    ? "💵 เงินสด (CASH)"
+                    : "📝 เงินเชื่อ (CREDIT)"}
+                </span>
+              </div>
+
+              {paymentMethod === "CASH" ? (
+                <>
+                  <div className="flex justify-between items-center text-sm font-semibold text-base-content/70">
+                    <span>จำนวนเงินที่รับ:</span>
+                    <span className="font-bold text-base-content font-mono">
+                      {formatBaht(tenderedSatang)}
+                    </span>
+                  </div>
+
+                  <div className="pt-2.5 border-t border-base-300 flex justify-between items-center">
+                    <span className="text-base font-bold text-base-content">
+                      เงินทอน:
+                    </span>
+                    <span className="text-2xl sm:text-3xl font-black text-success font-mono">
+                      {formatBaht(changeSatang)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="pt-2.5 border-t border-base-300 flex justify-between items-center text-sm">
+                  <span className="font-semibold text-base-content/70">
+                    ลูกค้า:
+                  </span>
+                  <span className="font-bold text-base-content">
+                    {selectedCustomer?.name || "-"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsConfirmOpen(false)}
+                disabled={isSubmitting}
+                className="btn btn-outline flex-1 h-13 text-base font-bold rounded-xl border-2"
+              >
+                กลับไปแก้ไข
+              </button>
+
+              <button
+                type="button"
+                onClick={executeCheckout}
+                disabled={isSubmitting}
+                className="btn btn-success flex-1 h-13 text-base font-black rounded-xl text-white shadow-md flex items-center justify-center gap-2 active:scale-98"
+              >
+                {isSubmitting ? (
+                  <span className="loading loading-spinner loading-md"></span>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-5 h-5" />
+                    <span>ยืนยันการขาย</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

@@ -20,8 +20,8 @@ export const ReceiptPrintView: React.FC<ReceiptPrintViewProps> = ({
     <div className="receipt-area w-[80mm] mx-auto p-4 bg-white text-black font-mono text-sm leading-tight border border-dashed border-gray-300 print:border-none">
       {/* Store Header */}
       <div className="text-center pb-3 border-b border-dashed border-gray-400">
-        <h2 className="text-xl font-bold tracking-wider">🧊 ICE POS</h2>
-        <p className="text-xs text-gray-700">โรงน้ำแข็งคุณภาพ สะอาด ปลอดภัย</p>
+        <h2 className="text-xl font-bold tracking-wider">ICE POS</h2>
+        <p className="text-xs text-gray-700">ร้านค้าทั่วไป</p>
         <p className="text-xs text-gray-700">โทร. 02-XXX-XXXX</p>
       </div>
 

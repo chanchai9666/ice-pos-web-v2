@@ -8,7 +8,6 @@ import {
   BarChart3,
   TrendingUp,
   DollarSign,
-  CreditCard,
   Ban,
   X,
   RefreshCw,
@@ -140,44 +139,44 @@ export const DailySummaryDrawer: React.FC<DailySummaryDrawerProps> = ({
                 <div className="mt-3 text-sm font-semibold opacity-90 flex justify-between border-t border-primary-content/20 pt-2">
                   <span>จำนวนบิลที่สำเร็จ:</span>
                   <span className="font-bold">
-                    {summary?.total_transactions || 0} บิล
+                    {summary?.bill_count || 0} บิล
                   </span>
                 </div>
               </div>
 
               {/* Stats Breakdown Grid */}
               <div className="grid grid-cols-2 gap-3.5">
-                {/* Cash Sales */}
+                {/* Cash Collected */}
                 <div className="p-4 bg-base-200 border-2 border-base-300 rounded-2xl">
                   <div className="flex items-center gap-2 text-success font-extrabold text-base mb-1">
                     <DollarSign className="w-5 h-5" />
-                    <span>เงินสด (CASH)</span>
+                    <span>เงินสดเก็บได้สุทธิ</span>
                   </div>
                   <div className="text-2xl font-black text-base-content">
-                    {formatBaht(summary?.cash_sales || 0)}
+                    {formatBaht(summary?.total_cash_collected || 0)}
                   </div>
                 </div>
 
-                {/* Credit Sales */}
+                {/* Gross Profit */}
                 <div className="p-4 bg-base-200 border-2 border-base-300 rounded-2xl">
                   <div className="flex items-center gap-2 text-info font-extrabold text-base mb-1">
-                    <CreditCard className="w-5 h-5" />
-                    <span>เงินเชื่อ (CREDIT)</span>
+                    <TrendingUp className="w-5 h-5" />
+                    <span>กำไรขั้นต้น</span>
                   </div>
                   <div className="text-2xl font-black text-base-content">
-                    {formatBaht(summary?.credit_sales || 0)}
+                    {formatBaht(summary?.gross_profit || 0)}
                   </div>
                 </div>
               </div>
 
-              {/* Voided Sales */}
+              {/* Voided Bills Count */}
               <div className="p-4 bg-error/10 border-2 border-error/20 rounded-2xl flex justify-between items-center">
                 <div className="flex items-center gap-2 text-error font-extrabold text-base">
                   <Ban className="w-5 h-5" />
-                  <span>ยอดบิลที่ถูกยกเลิก (Void):</span>
+                  <span>จำนวนบิลที่ยกเลิก (Void):</span>
                 </div>
                 <span className="text-2xl font-black text-error">
-                  {formatBaht(summary?.voided_sales || 0)}
+                  {summary?.void_count || 0} บิล
                 </span>
               </div>
 
@@ -210,7 +209,7 @@ export const DailySummaryDrawer: React.FC<DailySummaryDrawerProps> = ({
                               {item.product_name}
                             </div>
                             <div className="text-xs text-base-content/60 font-semibold">
-                              ขายได้ {item.total_qty} หน่วย
+                              ขายได้ {item.total_qty_sold} หน่วย
                             </div>
                           </div>
                         </div>

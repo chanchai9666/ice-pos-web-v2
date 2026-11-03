@@ -7,6 +7,7 @@ import { CartProvider, useCart } from "../context/CartContext.tsx";
 import { Product, Category, Receipt } from "../types/api.ts";
 import { syncService } from "../services/syncService.ts";
 import { offlineStorage } from "../services/offlineStorage.ts";
+import { apiClient } from "../services/apiClient.ts";
 import { HeaderBar } from "../components/pos/HeaderBar.tsx";
 import { ProductGrid } from "../components/pos/ProductGrid.tsx";
 import { CartSidebar } from "../components/pos/CartSidebar.tsx";
@@ -56,6 +57,21 @@ function PosContent() {
         if (fresh.products.length > 0) {
           setProducts(fresh.products);
           setCategories(fresh.categories);
+        } else if (cached.products.length === 0) {
+          // Direct fallback if both cache and sync returned empty
+          const [prodRes, catRes] = await Promise.all([
+            apiClient.get<{ data: Product[]; success: boolean }>(
+              "/products?limit=500"
+            ),
+            apiClient.get<{ data: Category[]; success: boolean }>(
+              "/categories"
+            ),
+          ]);
+          if (prodRes && prodRes.data && prodRes.data.length > 0) {
+            setProducts(prodRes.data);
+            setCategories(catRes.data || []);
+            offlineStorage.saveCatalog(prodRes.data, catRes.data || []);
+          }
         }
       } catch (e) {
         console.warn("Could not fetch fresh catalog:", e);
