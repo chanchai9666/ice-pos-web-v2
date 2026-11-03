@@ -3,8 +3,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext.tsx";
+import { useToast } from "../../context/ToastContext.tsx";
 import { User } from "../../types/api.ts";
-import { apiClient } from "../../services/apiClient.ts";
+import { offlineStorage } from "../../services/offlineStorage.ts";
+import { syncService } from "../../services/syncService.ts";
 import { HeaderBar } from "../../components/pos/HeaderBar.tsx";
 import { CreateUserModal } from "../../components/users/CreateUserModal.tsx";
 import { ResetPinModal } from "../../components/users/ResetPinModal.tsx";
@@ -22,9 +24,13 @@ import {
 export default function UsersPage() {
   const router = useRouter();
   const { user, token, isLoading: isAuthLoading } = useAuth();
+  const { toast } = useToast();
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [users, setUsers] = useState<User[]>(() => offlineStorage.getUsers());
+  const [isLoading, setIsLoading] = useState(
+    () => offlineStorage.getUsers().length === 0
+  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Modals
@@ -41,22 +47,45 @@ export default function UsersPage() {
   }, [token, isAuthLoading, router]);
 
   const loadUsers = useCallback(async () => {
-    setIsLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ data: User[]; success: boolean }>(
-        "/users"
-      );
-      if (res && res.data) {
-        setUsers(res.data);
+      const data = await syncService.pullUsers();
+      if (data && data.length > 0) {
+        setUsers(data);
       }
     } catch (err: unknown) {
-      console.error("Failed to load users:", err);
-      setError("ไม่สามารถดึงข้อมูลผู้ใช้งานได้ (ตรวจสอบการเชื่อมต่อ API)");
+      console.warn("Failed to load users from API, using offline cache:", err);
+      const cached = offlineStorage.getUsers();
+      if (cached.length > 0) {
+        setUsers(cached);
+      } else {
+        setError("ไม่สามารถดึงข้อมูลผู้ใช้งานได้ (ตรวจสอบการเชื่อมต่อ API)");
+      }
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      const res = await syncService.runFullSyncCycle();
+      const updated = offlineStorage.getUsers();
+      setUsers(updated);
+      if (res.success) {
+        toast.success("อัปเดตข้อมูลผู้ใช้และระบบเรียบร้อยแล้ว");
+      } else {
+        toast.warning(
+          res.error || "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ ใช้ข้อมูลในเครื่อง"
+        );
+      }
+    } catch {
+      toast.error("อัปเดตข้อมูลไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อ");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (token) {
@@ -94,6 +123,21 @@ export default function UsersPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="btn btn-outline border-2 border-base-300 hover:border-primary h-12 px-4 font-bold rounded-2xl gap-2 shadow-xs bg-base-100"
+              title="กดเพื่ออัปเดตข้อมูลผู้ใช้ล่าสุดจากเซิร์ฟเวอร์"
+            >
+              <RefreshCw
+                className={`w-4 h-4 text-primary ${
+                  isRefreshing ? "animate-spin" : ""
+                }`}
+              />
+              <span className="hidden sm:inline">อัปเดตข้อมูลล่าสุด</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setIsCreateOpen(true)}

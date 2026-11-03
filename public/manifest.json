@@ -1,0 +1,16 @@
+{
+  "name": "ICE POS v2 - ระบบขายหน้าร้าน",
+  "short_name": "ICE POS",
+  "description": "ระบบขายหน้าร้านสำหรับแคชเชียร์ รองรับการทำงานแบบออฟไลน์ 100%",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

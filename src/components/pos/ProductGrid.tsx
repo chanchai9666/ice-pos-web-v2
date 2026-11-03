@@ -6,6 +6,7 @@ import { apiClient } from "../../services/apiClient.ts";
 import { CategoryTabs } from "./CategoryTabs.tsx";
 import { ProductCard } from "./ProductCard.tsx";
 import { BarcodeScannerInput } from "./BarcodeScannerInput.tsx";
+import { BarcodeScannerModal } from "../common/BarcodeScannerModal.tsx";
 import { PackageX } from "lucide-react";
 import { useToast } from "../../context/ToastContext.tsx";
 
@@ -25,9 +26,10 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   const { toast } = useToast();
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // Barcode scan handler
-  const handleScanBarcode = async (barcode: string) => {
+  const handleScanBarcode = async (barcode: string): Promise<boolean> => {
     const trimmed = barcode.trim().toLowerCase();
     const found = products.find(
       (p) =>
@@ -38,7 +40,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
 
     if (found) {
       onAddToCart(found);
-      return;
+      return true;
     }
 
     // Fallback: If not found in local cache, query API directly
@@ -48,11 +50,14 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
       );
       if (res && res.data) {
         onAddToCart(res.data);
+        return true;
       } else {
         toast.warning(`ไม่พบสินค้าสำหรับบาร์โค้ด: ${barcode}`);
+        return false;
       }
     } catch {
       toast.warning(`ไม่พบสินค้าสำหรับบาร์โค้ด: ${barcode}`);
+      return false;
     }
   };
 
@@ -79,6 +84,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
             onScanBarcode={handleScanBarcode}
             onSearchChange={setSearchQuery}
             searchQuery={searchQuery}
+            onOpenScanner={() => setIsScannerOpen(true)}
           />
         </div>
         <CategoryTabs
@@ -115,6 +121,13 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
           </div>
         )}
       </div>
+
+      {/* Barcode Camera Scanner Modal */}
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onDetected={handleScanBarcode}
+      />
     </div>
   );
 };

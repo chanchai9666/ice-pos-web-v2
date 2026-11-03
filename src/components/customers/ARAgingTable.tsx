@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { ARAgingItem, Customer } from "../../types/api.ts";
-import { apiClient } from "../../services/apiClient.ts";
+import { offlineStorage } from "../../services/offlineStorage.ts";
+import { syncService } from "../../services/syncService.ts";
 import { formatBaht } from "../../utils/currency.ts";
 import {
   AlertTriangle,
@@ -17,24 +18,31 @@ interface ARAgingTableProps {
 }
 
 export const ARAgingTable: React.FC<ARAgingTableProps> = ({ onPayCredit }) => {
-  const [items, setItems] = useState<ARAgingItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [items, setItems] = useState<ARAgingItem[]>(() =>
+    offlineStorage.getARAging()
+  );
+  const [isLoading, setIsLoading] = useState(
+    () => offlineStorage.getARAging().length === 0
+  );
   const [error, setError] = useState<string | null>(null);
 
   const loadReport = async () => {
-    setIsLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{
-        data: ARAgingItem[];
-        success: boolean;
-      }>("/customers/reports/ar-aging");
-      if (res && res.data) {
-        setItems(res.data);
+      const data = await syncService.pullARAging();
+      if (data && data.length > 0) {
+        setItems(data);
       }
     } catch (err: unknown) {
-      console.error("Failed to load AR aging report:", err);
-      setError("ไม่สามารถดึงรายงานลูกหนี้ค้างชำระได้");
+      console.warn("Failed to load live AR aging, using offline cache:", err);
+      const cached = offlineStorage.getARAging();
+      if (cached.length > 0) {
+        setItems(cached);
+      } else {
+        setError(
+          "ไม่สามารถดึงรายงานลูกหนี้ค้างชำระได้ (ตรวจสอบการเชื่อมต่อ API)"
+        );
+      }
     } finally {
       setIsLoading(false);
     }

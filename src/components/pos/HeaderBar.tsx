@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../../context/AuthContext.tsx";
@@ -37,40 +37,65 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   const { user, isOffline, logout } = useAuth();
   const { toast } = useToast();
   const [offlineCount, setOfflineCount] = useState<number>(0);
+  const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  const formatSyncTime = (isoString: string | null) => {
+    if (!isoString) return "ยังไม่เคยซิงค์";
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "ยังไม่เคยซิงค์";
+      return d.toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "ยังไม่เคยซิงค์";
+    }
+  };
 
   // Listen for storage events (e.g. sale queued in another tab or checkout modal)
   useEffect(() => {
     const updateOfflineCount = () => {
       setOfflineCount(offlineStorage.getOfflineSales().length);
+      setLastSync(offlineStorage.getLastSyncTime());
     };
     updateOfflineCount();
 
     window.addEventListener("storage", updateOfflineCount);
-    const interval = setInterval(updateOfflineCount, 10000);
+    const interval = setInterval(updateOfflineCount, 5000);
     return () => {
       window.removeEventListener("storage", updateOfflineCount);
       clearInterval(interval);
     };
   }, []);
 
-  const handleManualSync = async () => {
+  const handleManualSync = useCallback(async () => {
     if (isSyncing || isOffline) return;
     setIsSyncing(true);
     try {
-      const res = await syncService.syncOfflineSales();
-      if (res) {
-        if (res.synced_sales > 0) {
-          toast.success(`ซิงค์ข้อมูลสำเร็จ: ${res.synced_sales} บิล`);
+      const res = await syncService.runFullSyncCycle();
+      if (res.success) {
+        if (res.syncedSales > 0) {
+          toast.success(
+            `ซิงค์ข้อมูลสำเร็จ: ส่งบิล ${res.syncedSales} รายการ พร้อมอัปเดตข้อมูลล่าสุด`
+          );
+        } else {
+          toast.success(
+            "อัปเดตข้อมูลล่าสุด (สินค้า, ลูกค้า, หนี้การค้า, ผู้ใช้) เรียบร้อยแล้ว"
+          );
         }
-        setOfflineCount(offlineStorage.getOfflineSales().length);
+      } else {
+        toast.warning(res.error || "การซิงค์ข้อมูลล้มเหลว");
       }
     } catch {
       toast.error("การซิงค์ข้อมูลล้มเหลว กรุณาตรวจสอบการเชื่อมต่อ");
     } finally {
+      setOfflineCount(offlineStorage.getOfflineSales().length);
+      setLastSync(offlineStorage.getLastSyncTime());
       setIsSyncing(false);
     }
-  };
+  }, [isSyncing, isOffline, toast]);
 
   // Demand-Driven Auto-Sync with Exponential Backoff:
   // Runs ONLY when there are offline sales waiting to be synced (offlineCount > 0)
@@ -84,13 +109,14 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     const attemptSync = async () => {
       if (isCancelled || isSyncing) return;
       try {
-        const res = await syncService.syncOfflineSales();
-        if (res) {
-          if (res.synced_sales > 0) {
-            toast.success(`ซิงค์ข้อมูลสำเร็จ: ${res.synced_sales} บิล`);
+        const res = await syncService.runFullSyncCycle();
+        if (res && res.success) {
+          if (res.syncedSales > 0) {
+            toast.success(`ซิงค์ข้อมูลสำเร็จ: ${res.syncedSales} บิล`);
           }
           const remaining = offlineStorage.getOfflineSales().length;
           setOfflineCount(remaining);
+          setLastSync(offlineStorage.getLastSyncTime());
           if (remaining === 0) {
             return; // All synced, stop retry loop
           }
@@ -112,21 +138,42 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       isCancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [offlineCount, isOffline]);
+  }, [offlineCount, isOffline, isSyncing, toast]);
 
-  // When network comes back online, try sync immediately if queue has pending items
+  // Periodic background sync every 2 minutes when online
+  useEffect(() => {
+    if (isOffline) return;
+
+    const periodicInterval = setInterval(async () => {
+      if (isSyncing || isOffline) return;
+      try {
+        const res = await syncService.runFullSyncCycle();
+        if (res.success && res.syncedSales > 0) {
+          toast.success(`ซิงค์ข้อมูลอัตโนมัติสำเร็จ: ${res.syncedSales} บิล`);
+        }
+        setOfflineCount(offlineStorage.getOfflineSales().length);
+        setLastSync(offlineStorage.getLastSyncTime());
+      } catch {
+        // Silent failure in background interval
+      }
+    }, 120000);
+
+    return () => clearInterval(periodicInterval);
+  }, [isOffline, isSyncing, toast]);
+
+  // When network comes back online, try sync immediately
   useEffect(() => {
     const handleOnline = () => {
       const count = offlineStorage.getOfflineSales().length;
       setOfflineCount(count);
-      if (count > 0 && !isSyncing) {
+      if (!isSyncing) {
         handleManualSync();
       }
     };
 
     window.addEventListener("online", handleOnline);
     return () => window.removeEventListener("online", handleOnline);
-  }, [isSyncing]);
+  }, [isSyncing, handleManualSync]);
 
   const handleLogoutClick = () => {
     if (window.confirm("คุณต้องการออกจากระบบหรือไม่?")) {
@@ -215,21 +262,41 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
         {/* Right Section: Utilities & Actions */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-          {/* Offline sync indicator */}
-          {offlineCount > 0 && (
-            <button
-              type="button"
-              onClick={handleManualSync}
-              disabled={isSyncing || isOffline}
-              className="btn btn-warning btn-sm h-9.5 text-xs font-bold rounded-xl gap-1.5 shadow-xs"
-              title="กดเพื่อส่งบิลออฟไลน์ขึ้นเซิร์ฟเวอร์"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`}
-              />
-              <span>รอซิงค์ {offlineCount}</span>
-            </button>
-          )}
+          {/* Offline sync indicator & Manual Sync button */}
+          <div className="flex items-center">
+            {offlineCount > 0 ? (
+              <button
+                type="button"
+                onClick={handleManualSync}
+                disabled={isSyncing || isOffline}
+                className="btn btn-warning btn-sm h-9.5 text-xs font-black rounded-xl gap-1.5 shadow-xs"
+                title="กดเพื่อส่งบิลออฟไลน์ขึ้นเซิร์ฟเวอร์ และอัปเดตข้อมูลล่าสุด"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`}
+                />
+                <span>รอซิงค์ {offlineCount} บิล</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleManualSync}
+                disabled={isSyncing || isOffline}
+                className="btn btn-outline border-base-300 hover:border-primary btn-sm h-9.5 text-xs font-bold rounded-xl gap-1.5 text-base-content/80 hover:text-base-content shadow-2xs bg-base-100"
+                title="กดเพื่ออัปเดตข้อมูลล่าสุด (สินค้า, ลูกค้า, หนี้การค้า, ผู้ใช้) จากเซิร์ฟเวอร์"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 text-primary ${
+                    isSyncing ? "animate-spin" : ""
+                  }`}
+                />
+                <span className="hidden sm:inline">อัปเดตข้อมูล</span>
+                <span className="text-[10px] opacity-60 font-semibold">
+                  ({formatSyncTime(lastSync)})
+                </span>
+              </button>
+            )}
+          </div>
 
           {/* Contextual Actions (e.g. Sales History / Daily Summary on Cashier page) */}
           {(onOpenHistory || onOpenDailySummary) && (

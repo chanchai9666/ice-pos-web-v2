@@ -4,6 +4,8 @@ import {
   Category,
   Product,
   Customer,
+  User,
+  ARAgingItem,
   SyncChangesResponse,
   SyncBatchResponse,
 } from "../types/api.ts";
@@ -107,6 +109,8 @@ export const syncService = {
         }
         if (res.data.server_time) {
           offlineStorage.setLastSyncTime(res.data.server_time);
+        } else {
+          offlineStorage.setLastSyncTime(new Date().toISOString());
         }
         return { products: finalProducts, categories: finalCategories };
       }
@@ -132,6 +136,43 @@ export const syncService = {
       console.warn("Pull customers failed, using cached list:", err);
     }
     return offlineStorage.getCustomers();
+  },
+
+  /**
+   * Pulls users and caches them for offline access and cashier management
+   */
+  async pullUsers(): Promise<User[]> {
+    try {
+      const res = await apiClient.get<{ data: User[]; success: boolean }>(
+        "/users"
+      );
+      if (res && res.data) {
+        offlineStorage.saveUsers(res.data);
+        return res.data;
+      }
+    } catch (err) {
+      console.warn("Pull users failed, using cached list:", err);
+    }
+    return offlineStorage.getUsers();
+  },
+
+  /**
+   * Pulls AR Aging (หนี้การค้า) and caches for offline view
+   */
+  async pullARAging(): Promise<ARAgingItem[]> {
+    try {
+      const res = await apiClient.get<{
+        data: ARAgingItem[];
+        success: boolean;
+      }>("/customers/reports/ar-aging");
+      if (res && res.data) {
+        offlineStorage.saveARAging(res.data);
+        return res.data;
+      }
+    } catch (err) {
+      console.warn("Pull AR aging failed, using cached report:", err);
+    }
+    return offlineStorage.getARAging();
   },
 
   /**
@@ -173,5 +214,58 @@ export const syncService = {
       isSyncInProgress = false;
     }
     return null;
+  },
+
+  /**
+   * Runs a full two-way sync cycle: pushes offline sales, pulls catalog and customer changes
+   */
+  async runFullSyncCycle(): Promise<{
+    success: boolean;
+    syncedSales: number;
+    error?: string;
+  }> {
+    if (isSyncInProgress) {
+      return {
+        success: false,
+        syncedSales: 0,
+        error: "กำลังซิงค์ข้อมูลอยู่ กรุณารอสักครู่",
+      };
+    }
+
+    const isHealthy = await this.checkApiHealth();
+    if (!isHealthy) {
+      return {
+        success: false,
+        syncedSales: 0,
+        error: "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้",
+      };
+    }
+
+    let syncedSales = 0;
+    try {
+      // 1. Push offline sales if any
+      const offlineSales = offlineStorage.getOfflineSales();
+      if (offlineSales.length > 0) {
+        const batchRes = await this.syncOfflineSales();
+        if (batchRes) {
+          syncedSales = batchRes.synced_sales;
+        }
+      }
+
+      // 2. Concurrently pull catalog, customers, AR aging, and users
+      await Promise.all([
+        this.pullCatalog(),
+        this.pullCustomers(),
+        this.pullARAging(),
+        this.pullUsers(),
+      ]);
+
+      offlineStorage.setLastSyncTime(new Date().toISOString());
+      return { success: true, syncedSales };
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "การซิงค์ข้อมูลรอบนี้ไม่สำเร็จ";
+      return { success: false, syncedSales, error: msg };
+    }
   },
 };

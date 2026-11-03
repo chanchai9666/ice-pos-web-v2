@@ -4,8 +4,17 @@ import React, { useState, useEffect } from "react";
 import { Product, Category } from "../../types/api.ts";
 import { apiClient } from "../../services/apiClient.ts";
 import { bahtToSatang } from "../../utils/currency.ts";
-import { Package, X, Save, Image as ImageIcon } from "lucide-react";
+import {
+  Package,
+  X,
+  Save,
+  Image as ImageIcon,
+  Camera,
+  ScanBarcode,
+} from "lucide-react";
 import { useToast } from "../../context/ToastContext.tsx";
+import { CameraCaptureModal } from "../common/CameraCaptureModal.tsx";
+import { BarcodeScannerModal } from "../common/BarcodeScannerModal.tsx";
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -34,6 +43,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [isActive, setIsActive] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +204,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           )}
 
           {/* Image Upload / Preview */}
-          <div className="flex items-center gap-4 p-3 border-2 border-dashed border-base-300 rounded-2xl bg-base-200/30">
+          <div className="flex items-center gap-4 p-3.5 border-2 border-dashed border-base-300 rounded-2xl bg-base-200/30">
             <div className="w-20 h-20 rounded-xl bg-base-300 overflow-hidden flex items-center justify-center relative shrink-0">
               {previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -206,16 +217,27 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <ImageIcon className="w-8 h-8 text-base-content/40" />
               )}
             </div>
-            <div className="flex-1">
-              <label className="text-sm font-bold block mb-1">
+            <div className="flex-1 min-w-0">
+              <label className="text-sm font-bold block mb-1.5">
                 รูปภาพสินค้า (แปลงเป็น WebP อัตโนมัติ)
               </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="file-input file-input-bordered file-input-sm w-full rounded-xl"
-              />
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="file-input file-input-bordered file-input-sm flex-1 rounded-xl w-full"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsCameraOpen(true)}
+                  className="btn btn-outline btn-primary btn-sm rounded-xl font-bold gap-1.5 shrink-0 self-start sm:self-auto"
+                  title="ถ่ายภาพจากกล้อง"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>ถ่ายภาพ</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -236,8 +258,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           </div>
 
           {/* Code & Barcode */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+            <div className="sm:col-span-5">
               <label className="label text-base font-bold pb-1">
                 รหัสสินค้า (Code) <span className="text-error">*</span>
               </label>
@@ -250,17 +272,28 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 className="input input-bordered w-full h-12 font-mono font-bold rounded-xl"
               />
             </div>
-            <div>
+            <div className="sm:col-span-7">
               <label className="label text-base font-bold pb-1">
                 บาร์โค้ด (Barcode)
               </label>
-              <input
-                type="text"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="ยิงบาร์โค้ดสินค้าที่นี่..."
-                className="input input-bordered w-full h-12 font-mono font-bold rounded-xl"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  placeholder="ยิงบาร์โค้ดที่นี่..."
+                  className="input input-bordered flex-1 h-12 font-mono font-bold rounded-xl text-base"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="btn btn-primary h-12 px-3.5 sm:px-4 rounded-xl font-bold gap-1.5 shrink-0 shadow-sm"
+                  title="เปิดกล้องสแกนบาร์โค้ด"
+                >
+                  <ScanBarcode className="w-5 h-5" />
+                  <span>สแกน</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -358,6 +391,25 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Camera Capture Modal */}
+      <CameraCaptureModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={(file) => {
+          setImageFile(file);
+          setPreviewUrl(URL.createObjectURL(file));
+        }}
+      />
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onDetected={(scannedCode) => {
+          setBarcode(scannedCode);
+        }}
+      />
     </div>
   );
 };

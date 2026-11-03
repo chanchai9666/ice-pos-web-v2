@@ -79,8 +79,10 @@ function PosContent() {
         setIsCatalogLoading(false);
       }
 
-      // Also pre-cache customers
+      // Pre-cache customers, AR aging, and users
       syncService.pullCustomers().catch(() => {});
+      syncService.pullARAging().catch(() => {});
+      syncService.pullUsers().catch(() => {});
     };
 
     if (token) {

@@ -14,6 +14,7 @@ import {
   setToken,
   setRefreshToken,
 } from "../services/apiClient.ts";
+import { offlineStorage, hashPin } from "../services/offlineStorage.ts";
 
 interface AuthContextType {
   user: User | null;
@@ -35,33 +36,31 @@ const CACHED_USER_KEY = "ice_pos_cached_user";
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem(CACHED_USER_KEY);
-        if (cached) return JSON.parse(cached);
-      } catch {
-        // ignore
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setTokenState] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isOffline, setIsOffline] = useState<boolean>(false);
+
+  // Restore authentication state on client mount to avoid SSR hydration mismatch
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(CACHED_USER_KEY);
+      if (cached) {
+        setUser(JSON.parse(cached));
       }
+      const savedToken = getToken();
+      if (savedToken) {
+        setTokenState(savedToken);
+      }
+      if (typeof window !== "undefined") {
+        setIsOffline(!window.navigator.onLine);
+      }
+    } catch (e) {
+      console.warn("Failed to restore auth session from storage:", e);
+    } finally {
+      setIsLoading(false);
     }
-    return null;
-  });
-
-  const [token, setTokenState] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return getToken();
-    }
-    return null;
-  });
-
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-
-  const [isOffline, setIsOffline] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return !window.navigator.onLine;
-    }
-    return false;
-  });
+  }, []);
 
   // Monitor network status passively with window online/offline events
   useEffect(() => {
@@ -111,30 +110,92 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const loginWithPin = useCallback(
     async (pin: string): Promise<{ success: boolean; error?: string }> => {
       setIsLoading(true);
-      try {
-        const res = await apiClient.post<AuthDataResponse>("/auth/pin-login", {
-          pin,
-        });
-        if (res && res.success && res.data) {
-          const { access_token, refresh_token, user: userData } = res.data;
-          setToken(access_token);
-          setTokenState(access_token);
-          if (refresh_token) {
-            setRefreshToken(refresh_token);
+
+      // Attempt online login first if online
+      if (typeof window !== "undefined" && window.navigator.onLine) {
+        try {
+          const res = await apiClient.post<AuthDataResponse>(
+            "/auth/pin-login",
+            {
+              pin,
+            }
+          );
+          if (res && res.success && res.data) {
+            const { access_token, refresh_token, user: userData } = res.data;
+            setToken(access_token);
+            setTokenState(access_token);
+            if (refresh_token) {
+              setRefreshToken(refresh_token);
+            }
+            setUser(userData);
+            localStorage.setItem(CACHED_USER_KEY, JSON.stringify(userData));
+
+            // Cache cashier profile & hashed PIN for future offline authentications
+            try {
+              const pinHash = await hashPin(pin);
+              await offlineStorage.saveCashier({
+                id: userData.id,
+                username: userData.username,
+                display_name:
+                  userData.display_name ||
+                  userData.full_name ||
+                  userData.username,
+                full_name: userData.full_name,
+                role: userData.role,
+                is_active: userData.is_active,
+                pin_hash: pinHash,
+                updated_at: new Date().toISOString(),
+              });
+            } catch (cacheErr) {
+              console.warn("Failed to cache cashier PIN hash:", cacheErr);
+            }
+
+            setIsLoading(false);
+            return { success: true };
           }
-          setUser(userData);
-          localStorage.setItem(CACHED_USER_KEY, JSON.stringify(userData));
+          if (res && !res.success) {
+            setIsLoading(false);
+            return {
+              success: false,
+              error: res.message || "รหัส PIN ไม่ถูกต้อง",
+            };
+          }
+        } catch (err: unknown) {
+          // If network error occurred, proceed to offline check below
+          console.warn(
+            "Online PIN login network error, falling back to offline check:",
+            err
+          );
+        }
+      }
+
+      // Offline fallback: verify PIN hash against cached cashiers in IndexedDB
+      try {
+        const pinHash = await hashPin(pin);
+        const cachedCashier =
+          await offlineStorage.findCashierByPinHash(pinHash);
+
+        if (cachedCashier) {
+          setUser(cachedCashier);
+          const fallbackToken = getToken() || "offline-session-token";
+          setToken(fallbackToken);
+          setTokenState(fallbackToken);
+          localStorage.setItem(CACHED_USER_KEY, JSON.stringify(cachedCashier));
           setIsLoading(false);
           return { success: true };
         }
-        setIsLoading(false);
-        return { success: false, error: res.message || "รหัส PIN ไม่ถูกต้อง" };
-      } catch (err: unknown) {
-        setIsLoading(false);
-        const msg =
-          err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการเข้าสู่ระบบ";
-        return { success: false, error: msg };
+      } catch (offlineErr) {
+        console.error("Offline PIN authentication failed:", offlineErr);
       }
+
+      setIsLoading(false);
+      return {
+        success: false,
+        error:
+          typeof window !== "undefined" && !window.navigator.onLine
+            ? "รหัส PIN ไม่ถูกต้อง หรือยังไม่เคยเข้าสู่ระบบด้วยรหัสนี้บนเครื่องนี้"
+            : "รหัส PIN ไม่ถูกต้อง",
+      };
     },
     []
   );

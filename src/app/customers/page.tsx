@@ -6,6 +6,8 @@ import { useAuth } from "../../context/AuthContext.tsx";
 import { useToast } from "../../context/ToastContext.tsx";
 import { Customer } from "../../types/api.ts";
 import { apiClient } from "../../services/apiClient.ts";
+import { offlineStorage } from "../../services/offlineStorage.ts";
+import { syncService } from "../../services/syncService.ts";
 import { HeaderBar } from "../../components/pos/HeaderBar.tsx";
 import { CreateCustomerModal } from "../../components/customers/CreateCustomerModal.tsx";
 import { PayCreditModal } from "../../components/customers/PayCreditModal.tsx";
@@ -31,9 +33,14 @@ export default function CustomersPage() {
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<"list" | "aging">("list");
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>(() =>
+    offlineStorage.getCustomers()
+  );
   const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(
+    () => offlineStorage.getCustomers().length === 0
+  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Modals
@@ -53,22 +60,48 @@ export default function CustomersPage() {
   }, [token, isAuthLoading, router]);
 
   const loadCustomers = useCallback(async () => {
-    setIsLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ data: Customer[]; success: boolean }>(
-        "/customers"
-      );
-      if (res && res.data) {
-        setCustomers(res.data);
+      const data = await syncService.pullCustomers();
+      if (data && data.length > 0) {
+        setCustomers(data);
       }
     } catch (err: unknown) {
-      console.error("Failed to load customers:", err);
-      setError("ไม่สามารถดึงข้อมูลลูกค้าได้ (ตรวจสอบการเชื่อมต่อ API)");
+      console.warn(
+        "Could not fetch fresh customers, using offline cache:",
+        err
+      );
+      const cached = offlineStorage.getCustomers();
+      if (cached.length > 0) {
+        setCustomers(cached);
+      } else {
+        setError("ไม่สามารถดึงข้อมูลลูกค้าได้ (ตรวจสอบการเชื่อมต่อ API)");
+      }
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      const res = await syncService.runFullSyncCycle();
+      const updated = offlineStorage.getCustomers();
+      setCustomers(updated);
+      if (res.success) {
+        toast.success("อัปเดตข้อมูลลูกค้าและยอดหนี้ล่าสุดเรียบร้อยแล้ว");
+      } else {
+        toast.warning(
+          res.error || "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ ใช้ข้อมูลในเครื่อง"
+        );
+      }
+    } catch {
+      toast.error("อัปเดตข้อมูลไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อ");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (token) {
@@ -146,6 +179,21 @@ export default function CustomersPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="btn btn-outline border-2 border-base-300 hover:border-primary h-12 px-4 font-bold rounded-2xl gap-2 shadow-xs bg-base-100"
+              title="กดเพื่ออัปเดตข้อมูลลูกค้าและยอดหนี้ล่าสุดจากเซิร์ฟเวอร์"
+            >
+              <RefreshCw
+                className={`w-4 h-4 text-primary ${
+                  isRefreshing ? "animate-spin" : ""
+                }`}
+              />
+              <span className="hidden sm:inline">อัปเดตข้อมูลล่าสุด</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setIsCreateOpen(true)}
@@ -341,14 +389,16 @@ export default function CustomersPage() {
                                 <span>วงเงิน</span>
                               </button>
 
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteCustomer(cust)}
-                                className="btn btn-sm btn-ghost text-error rounded-xl"
-                                title="ลบลูกค้า"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              {debt <= 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCustomer(cust)}
+                                  className="btn btn-sm btn-ghost text-error rounded-xl"
+                                  title="ลบลูกค้า"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

@@ -8,11 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/utils/currency.test.ts",
+    "test": "node --test src/utils/currency.test.ts src/services/offlineStorage.test.ts",
     "prepare": "husky"
   },
   "dependencies": {
     "daisyui": "^5.7.50",
+    "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.66.0",
     "next": "16.4.3",
     "react": "19.3.0",

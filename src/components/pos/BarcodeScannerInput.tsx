@@ -1,18 +1,20 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { Barcode, X } from "lucide-react";
+import { Barcode, X, Camera } from "lucide-react";
 
 interface BarcodeScannerInputProps {
   onScanBarcode: (barcode: string) => void;
   onSearchChange: (query: string) => void;
   searchQuery: string;
+  onOpenScanner?: () => void;
 }
 
 export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
   onScanBarcode,
   onSearchChange,
   searchQuery,
+  onOpenScanner,
 }) => {
   const [inputValue, setInputValue] = useState(searchQuery);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,19 +58,34 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder="ยิงบาร์โค้ด หรือ พิมพ์ชื่อสินค้าเพื่อค้นหา..."
-        className="input input-bordered w-full h-15 pl-14 pr-12 text-xl font-bold rounded-2xl border-2 border-base-300 focus:border-primary focus:outline-none shadow-sm"
+        className={`input input-bordered w-full h-15 pl-14 text-xl font-bold rounded-2xl border-2 border-base-300 focus:border-primary focus:outline-none shadow-sm ${
+          onOpenScanner ? "pr-32" : "pr-12"
+        }`}
       />
 
-      {inputValue && (
-        <button
-          type="button"
-          onClick={handleClear}
-          className="absolute inset-y-0 right-0 pr-4 flex items-center text-base-content/50 hover:text-base-content cursor-pointer"
-          aria-label="ล้างการค้นหา"
-        >
-          <X className="w-6 h-6" />
-        </button>
-      )}
+      <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1.5">
+        {inputValue && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="p-1.5 text-base-content/50 hover:text-base-content cursor-pointer rounded-lg hover:bg-base-200"
+            aria-label="ล้างการค้นหา"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+        {onOpenScanner && (
+          <button
+            type="button"
+            onClick={onOpenScanner}
+            className="btn btn-primary btn-sm h-10 px-3 rounded-xl flex items-center gap-1.5 font-bold shadow-sm"
+            title="เปิดกล้องสแกนบาร์โค้ด"
+          >
+            <Camera className="w-5 h-5" />
+            <span className="hidden sm:inline">กล้องสแกน</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 };

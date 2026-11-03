@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Customer } from "../../types/api.ts";
 import { apiClient } from "../../services/apiClient.ts";
 import { bahtToSatang } from "../../utils/currency.ts";
@@ -22,10 +22,23 @@ export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [isMember, setIsMember] = useState(false);
   const [creditLimitBaht, setCreditLimitBaht] = useState<string>("0");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const resetForm = useCallback(() => {
+    setName("");
+    setPhone("");
+    setEmail("");
+    setCreditLimitBaht("0");
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      resetForm();
+    }
+  }, [isOpen, resetForm]);
 
   if (!isOpen) return null;
 
@@ -48,7 +61,6 @@ export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({
           name: name.trim(),
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
-          is_member: isMember,
           initial_credit_limit: limitSatang,
           credit_limit: limitSatang,
         }
@@ -56,6 +68,7 @@ export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({
 
       if (res && res.data) {
         toast.success("ลงทะเบียนลูกค้าใหม่เรียบร้อยแล้ว");
+        resetForm();
         onSuccess(res.data);
         onClose();
       } else {
@@ -154,20 +167,6 @@ export const CreateCustomerModal: React.FC<CreateCustomerModalProps> = ({
             <p className="text-xs text-base-content/60 mt-1">
               ตั้งค่าเป็น 0 หากไม่ต้องการเปิดวงเงินเชื่อ
             </p>
-          </div>
-
-          <div className="form-control pt-1">
-            <label className="label cursor-pointer justify-start gap-3">
-              <input
-                type="checkbox"
-                checked={isMember}
-                onChange={(e) => setIsMember(e.target.checked)}
-                className="checkbox checkbox-primary rounded-lg"
-              />
-              <span className="label-text text-base font-bold">
-                ลงทะเบียนเป็นสมาชิกสะสมแต้ม (Member)
-              </span>
-            </label>
           </div>
 
           <div className="modal-action pt-4 border-t border-base-200">
