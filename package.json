@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/utils/currency.test.ts src/services/offlineStorage.test.ts",
+    "test": "node --test src/utils/currency.test.ts src/services/offlineStorage.test.ts src/hooks/useCameraStream.test.ts",
     "prepare": "husky"
   },
   "dependencies": {
