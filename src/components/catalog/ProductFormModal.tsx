@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Product, Category } from "../../types/api.ts";
 import { apiClient } from "../../services/apiClient.ts";
+import { uploadProductImageWithEmbedding } from "../../services/productImageUpload.ts";
 import { bahtToSatang } from "../../utils/currency.ts";
 import {
   Package,
@@ -47,6 +48,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isExtractingAi, setIsExtractingAi] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,6 +77,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setPreviewUrl(null);
     }
     setImageFile(null);
+    setIsExtractingAi(false);
     setError(null);
   }, [product, categories, isOpen]);
 
@@ -148,14 +151,19 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         }
       }
 
-      // If there's an image file to upload
+      // If there's an image file to upload with AI vector embedding
       if (imageFile && savedProductId) {
+        setIsExtractingAi(true);
         try {
-          const formData = new FormData();
-          formData.append("file", imageFile);
-          await apiClient.upload(`/products/${savedProductId}/image`, formData);
+          await uploadProductImageWithEmbedding(
+            savedProductId,
+            imageFile,
+            true
+          );
         } catch (uploadErr) {
           console.warn("Product image upload warning:", uploadErr);
+        } finally {
+          setIsExtractingAi(false);
         }
       }
 
@@ -200,6 +208,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           {error && (
             <div className="alert alert-error text-sm font-bold rounded-2xl py-2 px-4">
               <span>{error}</span>
+            </div>
+          )}
+
+          {isExtractingAi && (
+            <div className="alert alert-info text-sm font-bold rounded-2xl py-2 px-4 flex items-center gap-2">
+              <span className="loading loading-spinner loading-xs"></span>
+              <span>กำลังบันทึกและสกัดเวกเตอร์ AI...</span>
             </div>
           )}
 
@@ -382,11 +397,24 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               className="btn btn-primary h-12 px-6 rounded-xl font-black gap-2 shadow-sm"
             >
               {isLoading ? (
-                <span className="loading loading-spinner loading-sm"></span>
+                <>
+                  <span className="loading loading-spinner loading-sm"></span>
+                  <span>
+                    {isExtractingAi
+                      ? "กำลังบันทึกและสกัดเวกเตอร์ AI..."
+                      : isEditing
+                        ? "กำลังบันทึกการแก้ไข..."
+                        : "กำลังบันทึกสินค้าใหม่..."}
+                  </span>
+                </>
               ) : (
-                <Save className="w-5 h-5" />
+                <>
+                  <Save className="w-5 h-5" />
+                  <span>
+                    {isEditing ? "บันทึกการแก้ไข" : "บันทึกสินค้าใหม่"}
+                  </span>
+                </>
               )}
-              <span>{isEditing ? "บันทึกการแก้ไข" : "บันทึกสินค้าใหม่"}</span>
             </button>
           </div>
         </form>
