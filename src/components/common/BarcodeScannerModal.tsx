@@ -40,6 +40,7 @@ interface BarcodeScannerModalProps {
   onClose: () => void;
   onDetected: (code: string) => boolean | Promise<boolean | void> | void;
   continuous?: boolean;
+  allowContinuous?: boolean;
 }
 
 export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
@@ -47,6 +48,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   onClose,
   onDetected,
   continuous = false,
+  allowContinuous = true,
 }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [deviceNotice, setDeviceNotice] = useState<string | null>(null);
@@ -57,7 +59,9 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     []
   );
   const [cameraIndex, setCameraIndex] = useState(0);
-  const [isContinuous, setIsContinuous] = useState(continuous);
+  const [isContinuous, setIsContinuous] = useState(
+    allowContinuous ? continuous : false
+  );
 
   const [scanStatus, setScanStatus] = useState<"idle" | "success" | "error">(
     "idle"
@@ -85,6 +89,15 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   useEffect(() => {
     isContinuousRef.current = isContinuous;
   }, [isContinuous]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsContinuous(allowContinuous ? continuous : false);
+      setScannedCount(0);
+      setScanStatus("idle");
+      setStatusMessage("");
+    }
+  }, [isOpen, allowContinuous, continuous]);
 
   useEffect(() => {
     onDetectedRef.current = onDetected;
@@ -638,17 +651,19 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
           )}
 
           {/* Continuous scan toggle */}
-          <div className="w-full mt-3 flex items-center justify-between px-3.5 py-2 bg-base-200/60 rounded-xl border border-base-300/60">
-            <span className="text-xs font-bold text-base-content/80">
-              สแกนต่อเนื่องหลายชิ้น (เปิดกล้องค้างไว้)
-            </span>
-            <input
-              type="checkbox"
-              checked={isContinuous}
-              onChange={(e) => setIsContinuous(e.target.checked)}
-              className="toggle toggle-primary toggle-sm cursor-pointer"
-            />
-          </div>
+          {allowContinuous && (
+            <div className="w-full mt-3 flex items-center justify-between px-3.5 py-2 bg-base-200/60 rounded-xl border border-base-300/60">
+              <span className="text-xs font-bold text-base-content/80">
+                สแกนต่อเนื่องหลายชิ้น (เปิดกล้องค้างไว้)
+              </span>
+              <input
+                type="checkbox"
+                checked={isContinuous}
+                onChange={(e) => setIsContinuous(e.target.checked)}
+                className="toggle toggle-primary toggle-sm cursor-pointer"
+              />
+            </div>
+          )}
 
           {/* Action / Continuous Done button */}
           <div className="w-full mt-4 flex items-center justify-between gap-3">

@@ -409,6 +409,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         onDetected={(scannedCode) => {
           setBarcode(scannedCode);
         }}
+        allowContinuous={false}
       />
     </div>
   );
