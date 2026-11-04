@@ -28,15 +28,15 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className={`btn h-15 px-4 sm:px-5 rounded-2xl border-2 font-bold shrink-0 flex items-center gap-2 cursor-pointer transition-all ${
+        className={`btn h-12 sm:h-14 px-3 sm:px-4 rounded-2xl border-2 font-bold shrink-0 flex items-center gap-1.5 sm:gap-2 cursor-pointer transition-all ${
           activeCategory !== null
             ? "btn-primary shadow-md"
             : "border-base-300 bg-base-100 hover:bg-base-200 text-base-content shadow-xs"
         }`}
         title="เลือกหมวดหมู่สินค้า"
       >
-        <Layers className="w-6 h-6 shrink-0" />
-        <span className="text-base sm:text-lg font-black max-w-[130px] sm:max-w-[180px] truncate">
+        <Layers className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+        <span className="text-xs sm:text-base font-black max-w-[85px] sm:max-w-[160px] truncate">
           {activeCategoryName ? activeCategoryName : "หมวดหมู่ทั้งหมด"}
         </span>
         {activeCategory !== null ? (
@@ -47,13 +47,13 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
               e.stopPropagation();
               onSelectCategory(null);
             }}
-            className="p-1 hover:bg-black/20 rounded-full cursor-pointer ml-1 transition-colors"
+            className="p-1 hover:bg-black/20 rounded-full cursor-pointer ml-0.5 transition-colors"
             title="ล้างตัวกรองหมวดหมู่"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </span>
         ) : (
-          <ChevronDown className="w-4 h-4 opacity-70 shrink-0" />
+          <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 opacity-70 shrink-0" />
         )}
       </button>
 

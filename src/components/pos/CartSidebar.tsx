@@ -4,13 +4,17 @@ import React from "react";
 import { useCart } from "../../context/CartContext.tsx";
 import { CartItemRow } from "./CartItemRow.tsx";
 import { formatBaht } from "../../utils/currency.ts";
-import { ShoppingCart, Trash2, ArrowRight } from "lucide-react";
+import { ShoppingCart, Trash2, ArrowRight, X } from "lucide-react";
 
 interface CartSidebarProps {
   onOpenCheckout: () => void;
+  onCloseMobile?: () => void;
 }
 
-export const CartSidebar: React.FC<CartSidebarProps> = ({ onOpenCheckout }) => {
+export const CartSidebar: React.FC<CartSidebarProps> = ({
+  onOpenCheckout,
+  onCloseMobile,
+}) => {
   const {
     items,
     updateQty,
@@ -34,17 +38,29 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({ onOpenCheckout }) => {
           )}
         </div>
 
-        {items.length > 0 && (
-          <button
-            type="button"
-            onClick={clearCart}
-            className="btn btn-ghost btn-sm text-error hover:bg-error/10 font-bold gap-1 rounded-xl"
-            title="ล้างรายการทั้งหมดในบิล"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>ล้างบิล</span>
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {items.length > 0 && (
+            <button
+              type="button"
+              onClick={clearCart}
+              className="btn btn-ghost btn-sm text-error hover:bg-error/10 font-bold gap-1 rounded-xl"
+              title="ล้างรายการทั้งหมดในบิล"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>ล้างบิล</span>
+            </button>
+          )}
+          {onCloseMobile && (
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              className="btn btn-ghost btn-square btn-sm rounded-xl lg:hidden text-base-content/70 hover:text-base-content"
+              aria-label="ปิดรายการบิล"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Cart Items List */}
@@ -54,7 +70,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({ onOpenCheckout }) => {
             <ShoppingCart className="w-20 h-20 opacity-30" />
             <p className="text-2xl font-black">ยังไม่มีสินค้าในบิล</p>
             <p className="text-base font-medium">
-              แตะเลือกสินค้าจากตารางทางซ้าย หรือยิงบาร์โค้ดเพื่อเริ่มคิดเงิน
+              แตะเลือกสินค้าจากรายการ หรือยิงบาร์โค้ดเพื่อเริ่มคิดเงิน
             </p>
           </div>
         ) : (

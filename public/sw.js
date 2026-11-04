@@ -1,5 +1,5 @@
 // ICE POS Service Worker for Offline App Shell
-const CACHE_NAME = "ice-pos-cache-v1";
+const CACHE_NAME = "ice-pos-cache-v2";
 
 const PRECACHE_ASSETS = ["/", "/login", "/favicon.ico", "/manifest.json"];
 
@@ -67,6 +67,15 @@ self.addEventListener("fetch", (event) => {
   }
 
   // 4. For static assets (_next/static, fonts, icons): Stale-While-Revalidate
+  // Never cache HMR, webpack chunks or Turbopack development updates
+  if (
+    url.pathname.includes("hot-update") ||
+    url.pathname.includes("webpack") ||
+    url.pathname.includes("_next/static/development")
+  ) {
+    return;
+  }
+
   if (
     url.pathname.startsWith("/_next/static/") ||
     url.pathname.endsWith(".css") ||

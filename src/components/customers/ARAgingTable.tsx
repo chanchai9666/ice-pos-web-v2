@@ -147,7 +147,7 @@ export const ARAgingTable: React.FC<ARAgingTableProps> = ({ onPayCredit }) => {
               </p>
             </div>
           ) : (
-            <table className="table table-zebra w-full text-base">
+            <table className="table table-zebra w-full text-sm sm:text-base min-w-[760px]">
               <thead>
                 <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
                   <th>ชื่อลูกค้า</th>

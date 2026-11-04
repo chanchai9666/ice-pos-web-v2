@@ -222,7 +222,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-base-content/70 mt-0.5">
+              <div className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-base-content/70 mt-0.5">
                 <UserIcon className="w-3.5 h-3.5 text-base-content/50" />
                 <span className="hidden sm:inline">แคชเชียร์: </span>
                 <span className="font-bold text-base-content truncate max-w-[120px] sm:max-w-[160px]">
@@ -246,7 +246,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                   href={item.href}
                   className={`btn btn-sm h-9 px-3.5 font-bold rounded-xl gap-2 transition-all border-none ${
                     isActive
-                      ? "bg-primary text-white shadow-xs"
+                      ? "bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm"
                       : "btn-ghost hover:bg-base-200 text-base-content/70 hover:text-base-content"
                   }`}
                 >
@@ -261,7 +261,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         </div>
 
         {/* Right Section: Utilities & Actions */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Offline sync indicator & Manual Sync button */}
           <div className="flex items-center">
             {offlineCount > 0 ? (
@@ -269,20 +269,20 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 type="button"
                 onClick={handleManualSync}
                 disabled={isSyncing || isOffline}
-                className="btn btn-warning btn-sm h-9.5 text-xs font-black rounded-xl gap-1.5 shadow-xs"
+                className="btn btn-warning btn-sm h-9.5 text-xs font-black rounded-xl gap-1.5 shadow-xs px-2.5 sm:px-3"
                 title="กดเพื่อส่งบิลออฟไลน์ขึ้นเซิร์ฟเวอร์ และอัปเดตข้อมูลล่าสุด"
               >
                 <RefreshCw
                   className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`}
                 />
-                <span>รอซิงค์ {offlineCount} บิล</span>
+                <span>รอซิงค์ {offlineCount}</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleManualSync}
                 disabled={isSyncing || isOffline}
-                className="btn btn-outline border-base-300 hover:border-primary btn-sm h-9.5 text-xs font-bold rounded-xl gap-1.5 text-base-content/80 hover:text-base-content shadow-2xs bg-base-100"
+                className="btn btn-outline border-base-300 hover:border-primary btn-sm h-9.5 px-2.5 sm:px-3 text-xs font-bold rounded-xl gap-1.5 text-base-content/80 hover:text-base-content shadow-2xs bg-base-100"
                 title="กดเพื่ออัปเดตข้อมูลล่าสุด (สินค้า, ลูกค้า, หนี้การค้า, ผู้ใช้) จากเซิร์ฟเวอร์"
               >
                 <RefreshCw
@@ -291,7 +291,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                   }`}
                 />
                 <span className="hidden sm:inline">อัปเดตข้อมูล</span>
-                <span className="text-[10px] opacity-60 font-semibold">
+                <span className="text-[10px] opacity-60 font-semibold hidden md:inline">
                   ({formatSyncTime(lastSync)})
                 </span>
               </button>
@@ -300,7 +300,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
           {/* Contextual Actions (e.g. Sales History / Daily Summary on Cashier page) */}
           {(onOpenHistory || onOpenDailySummary) && (
-            <div className="flex items-center gap-1.5 bg-base-200/60 p-1 rounded-2xl border border-base-300 shadow-2xs">
+            <div className="hidden sm:flex items-center gap-1.5 bg-base-200/60 p-1 rounded-2xl border border-base-300 shadow-2xs">
               {onOpenHistory && (
                 <button
                   type="button"
@@ -309,7 +309,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                   title="ประวัติรายการขาย"
                 >
                   <History className="w-4 h-4 text-primary" />
-                  <span className="hidden sm:inline">ประวัติบิล</span>
+                  <span className="hidden lg:inline">ประวัติบิล</span>
                 </button>
               )}
 
@@ -321,14 +321,14 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                   title="สรุปยอดขายประจำวัน"
                 >
                   <BarChart3 className="w-4 h-4 text-primary" />
-                  <span className="hidden sm:inline">สรุปยอดขาย</span>
+                  <span className="hidden lg:inline">สรุปยอดขาย</span>
                 </button>
               )}
             </div>
           )}
 
           {/* Theme Switcher */}
-          <ThemeToggle />
+          <ThemeToggle compact />
 
           {/* Logout Button */}
           <button
@@ -355,7 +355,51 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
       {/* Mobile / Tablet Dropdown Menu */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden pt-3 pb-1 border-t border-base-200 mt-2.5 animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="lg:hidden pt-3 pb-1 border-t border-base-200 mt-2.5 animate-in fade-in slide-in-from-top-2 duration-150 space-y-2.5">
+          {/* User profile on mobile menu */}
+          <div className="flex items-center justify-between px-2 py-1.5 bg-base-200/60 rounded-xl text-xs font-bold text-base-content/80">
+            <span className="flex items-center gap-1.5">
+              <UserIcon className="w-3.5 h-3.5 text-base-content/50" />
+              แคชเชียร์: {user?.display_name || user?.username || "เจ้าหน้าที่"}
+            </span>
+            <span className="text-[10px] opacity-60">
+              ซิงค์ล่าสุด: {formatSyncTime(lastSync)}
+            </span>
+          </div>
+
+          {/* Quick Actions on Mobile (History & Daily Summary) */}
+          {(onOpenHistory || onOpenDailySummary) && (
+            <div className="grid grid-cols-2 gap-2 sm:hidden">
+              {onOpenHistory && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onOpenHistory();
+                  }}
+                  className="btn btn-outline border-base-300 btn-sm h-10 rounded-xl font-bold flex items-center justify-center gap-1.5 bg-base-100"
+                >
+                  <History className="w-4 h-4 text-primary" />
+                  <span>ประวัติบิล</span>
+                </button>
+              )}
+              {onOpenDailySummary && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onOpenDailySummary();
+                  }}
+                  className="btn btn-outline border-base-300 btn-sm h-10 rounded-xl font-bold flex items-center justify-center gap-1.5 bg-base-100"
+                >
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                  <span>สรุปยอดขาย</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Main Navigation links */}
           <nav className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {navItems.map((item) => {
               const isActive = pathname === item.href;
@@ -367,7 +411,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={`btn btn-sm h-11 px-3 font-bold rounded-xl gap-2 transition-all justify-start ${
                     isActive
-                      ? "btn-primary shadow-xs"
+                      ? "bg-indigo-600 dark:bg-indigo-500 text-white border-none shadow-sm"
                       : "btn-outline border-base-300 bg-base-100 text-base-content/80"
                   }`}
                 >

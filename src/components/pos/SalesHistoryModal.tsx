@@ -21,6 +21,9 @@ import {
   Package,
   ChevronLeft,
   ChevronRight,
+  Banknote,
+  CreditCard,
+  User,
 } from "lucide-react";
 
 interface SalesHistoryModalProps {
@@ -41,6 +44,11 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
   // Date Range Filter
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  // Payment Method Filter ('ALL' | 'CASH' | 'CREDIT')
+  const [paymentFilter, setPaymentFilter] = useState<"ALL" | "CASH" | "CREDIT">(
+    "ALL"
+  );
 
   // Expand Items state
   const [expandedSaleIds, setExpandedSaleIds] = useState<Set<string>>(
@@ -229,9 +237,14 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
         }
       }
 
+      // Payment Method Filter
+      if (paymentFilter !== "ALL" && s.payment_method !== paymentFilter) {
+        return false;
+      }
+
       return true;
     });
-  }, [sales, search, startDate, endDate]);
+  }, [sales, search, startDate, endDate, paymentFilter]);
 
   // Pagination calculation
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -271,8 +284,8 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
 
           {/* Search bar & Filter Toolbar */}
           <div className="p-4 border-b border-base-200 space-y-3 bg-base-100">
-            {/* Top row: Search input & Refresh button */}
-            <div className="flex gap-2.5">
+            {/* Top row: Search input, Payment Filter & Refresh button */}
+            <div className="flex flex-col sm:flex-row gap-2.5">
               <div className="relative flex-1">
                 <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-base-content/40 pointer-events-none" />
                 <input
@@ -300,27 +313,77 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => loadSales()}
-                disabled={isLoading}
-                className="btn btn-outline border-base-300 hover:border-primary hover:bg-primary/10 hover:text-primary h-11 px-4 rounded-xl font-bold gap-2 text-sm shrink-0 transition-colors"
-                title="รีเฟรชรายการ"
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
-                />
-                <span className="hidden sm:inline">รีเฟรช</span>
-              </button>
+              {/* Payment Filter & Refresh */}
+              <div className="flex items-center gap-2">
+                <div className="inline-flex p-1 bg-base-200/70 border border-base-300 rounded-xl flex-1 sm:flex-initial gap-1 justify-between sm:justify-start">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentFilter("ALL");
+                      setCurrentPage(1);
+                    }}
+                    className={`btn btn-xs sm:btn-sm h-9 px-2.5 sm:px-3 rounded-lg font-bold text-xs sm:text-sm transition-all flex-1 sm:flex-initial ${
+                      paymentFilter === "ALL"
+                        ? "btn-primary shadow-2xs"
+                        : "btn-ghost text-base-content/70 hover:text-base-content"
+                    }`}
+                  >
+                    ทั้งหมด
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentFilter("CASH");
+                      setCurrentPage(1);
+                    }}
+                    className={`btn btn-xs sm:btn-sm h-9 px-2.5 sm:px-3 rounded-lg font-bold text-xs sm:text-sm transition-all gap-1 sm:gap-1.5 flex-1 sm:flex-initial ${
+                      paymentFilter === "CASH"
+                        ? "bg-emerald-600 text-white shadow-2xs"
+                        : "btn-ghost text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                    }`}
+                  >
+                    <Banknote className="w-3.5 h-3.5" />
+                    <span>เงินสด</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentFilter("CREDIT");
+                      setCurrentPage(1);
+                    }}
+                    className={`btn btn-xs sm:btn-sm h-9 px-2.5 sm:px-3 rounded-lg font-bold text-xs sm:text-sm transition-all gap-1 sm:gap-1.5 flex-1 sm:flex-initial ${
+                      paymentFilter === "CREDIT"
+                        ? "bg-orange-600 text-white shadow-2xs"
+                        : "btn-ghost text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40"
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>เงินเชื่อ</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => loadSales()}
+                  disabled={isLoading}
+                  className="btn btn-outline border-base-300 hover:border-primary hover:bg-primary/10 hover:text-primary h-11 px-3 sm:px-4 rounded-xl font-bold gap-2 text-sm shrink-0 transition-colors"
+                  title="รีเฟรชรายการ"
+                >
+                  <RefreshCw
+                    className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
+                  />
+                  <span className="hidden sm:inline">รีเฟรช</span>
+                </button>
+              </div>
             </div>
 
             {/* Bottom row: Expanded Date Range Capsule & Preset Chips */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-0.5">
-              {/* Date Capsule Group (Expanded, spacious, never breaks lines) */}
-              <div className="inline-flex items-center bg-base-200/60 p-1 sm:p-1.5 rounded-xl border border-base-300 self-start shrink-0 shadow-2xs">
-                <div className="flex items-center gap-1.5 px-2.5 text-xs sm:text-sm font-bold text-base-content/80 whitespace-nowrap">
-                  <Calendar className="w-4 h-4 text-primary" />
-                  <span>ช่วงวันที่:</span>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3 pt-0.5">
+              {/* Date Capsule Group (Responsive on mobile) */}
+              <div className="flex items-center bg-base-200/60 p-1 sm:p-1.5 rounded-xl border border-base-300 w-full sm:w-auto shadow-2xs">
+                <div className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 text-xs sm:text-sm font-bold text-base-content/80 whitespace-nowrap shrink-0">
+                  <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+                  <span className="hidden xs:inline">ช่วงวันที่:</span>
                 </div>
                 <input
                   type="date"
@@ -330,9 +393,9 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
                     setCurrentPage(1);
                     loadSales(e.target.value, endDate);
                   }}
-                  className="input input-sm h-9 sm:h-9.5 w-36 sm:w-40 bg-base-100 border border-base-300 rounded-lg text-xs sm:text-sm font-semibold focus:outline-primary px-2.5 sm:px-3 text-center sm:text-left"
+                  className="input input-sm h-8 sm:h-9.5 flex-1 sm:w-40 bg-base-100 border border-base-300 rounded-lg text-xs sm:text-sm font-semibold focus:outline-primary px-1.5 sm:px-3 text-center sm:text-left min-w-0"
                 />
-                <span className="text-xs sm:text-sm text-base-content/50 px-2 font-bold select-none">
+                <span className="text-xs sm:text-sm text-base-content/50 px-1 sm:px-2 font-bold select-none shrink-0">
                   ถึง
                 </span>
                 <input
@@ -343,7 +406,7 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
                     setCurrentPage(1);
                     loadSales(startDate, e.target.value);
                   }}
-                  className="input input-sm h-9 sm:h-9.5 w-36 sm:w-40 bg-base-100 border border-base-300 rounded-lg text-xs sm:text-sm font-semibold focus:outline-primary px-2.5 sm:px-3 text-center sm:text-left"
+                  className="input input-sm h-8 sm:h-9.5 flex-1 sm:w-40 bg-base-100 border border-base-300 rounded-lg text-xs sm:text-sm font-semibold focus:outline-primary px-1.5 sm:px-3 text-center sm:text-left min-w-0"
                 />
               </div>
 
@@ -420,6 +483,7 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
             ) : (
               paginatedSales.map((sale) => {
                 const isVoided = sale.status === "VOIDED";
+                const isCredit = sale.payment_method === "CREDIT";
                 const isExpanded = expandedSaleIds.has(sale.id);
                 const itemsCount = sale.lines ? sale.lines.length : 0;
                 const dateStr = new Date(sale.occurred_at).toLocaleString(
@@ -435,17 +499,20 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
                     key={sale.id}
                     className={`rounded-2xl border transition-all overflow-hidden ${
                       isVoided
-                        ? "bg-error/5 border-error/25 opacity-80"
-                        : "bg-base-100 border-base-300 hover:border-primary/40 shadow-xs hover:shadow-sm"
+                        ? "bg-error/5 border-error/25 border-l-4 border-l-error opacity-80"
+                        : isCredit
+                          ? "bg-orange-50/40 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900/50 border-l-4 border-l-orange-500 hover:border-orange-400 shadow-2xs hover:shadow-xs"
+                          : "bg-base-100 border-base-300 border-l-4 border-l-emerald-500/70 hover:border-primary/40 shadow-2xs hover:shadow-xs"
                     }`}
                   >
                     {/* Main Sale Header Row */}
                     <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-base sm:text-lg font-black font-mono tracking-tight">
                             {sale.sale_no}
                           </span>
+
                           <span
                             className={`badge badge-sm text-[11px] font-bold py-1.5 px-2 rounded-md ${
                               isVoided
@@ -477,20 +544,31 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
                           </button>
                         </div>
 
-                        <div className="text-xs sm:text-sm font-medium text-base-content/60 flex items-center gap-1.5 flex-wrap">
+                        <div className="text-xs sm:text-sm font-medium text-base-content/60 flex items-center gap-1.5 sm:gap-2 flex-wrap">
                           <span>{dateStr}</span>
                           <span className="text-base-content/30">•</span>
-                          <span>
-                            {sale.payment_method === "CASH"
-                              ? "💵 เงินสด"
-                              : "📝 เงินเชื่อ"}
-                          </span>
+                          {isCredit ? (
+                            <span className="inline-flex items-center gap-1 font-black px-2.5 py-0.5 rounded-md text-xs bg-orange-600 text-white shadow-2xs">
+                              <span>📝 เงินเชื่อ</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 font-black px-2.5 py-0.5 rounded-md text-xs bg-emerald-600 text-white shadow-2xs">
+                              <span>💵 เงินสด</span>
+                            </span>
+                          )}
                           {sale.customer_name && (
                             <>
                               <span className="text-base-content/30">•</span>
-                              <span className="font-semibold text-base-content/80">
-                                ลูกค้า: {sale.customer_name}
-                              </span>
+                              {isCredit ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold text-xs bg-orange-100 text-orange-950 dark:bg-orange-950/80 dark:text-orange-200 border border-orange-300 dark:border-orange-800">
+                                  <User className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                                  <span>ลูกค้า: {sale.customer_name}</span>
+                                </span>
+                              ) : (
+                                <span className="font-semibold text-base-content/80">
+                                  ลูกค้า: {sale.customer_name}
+                                </span>
+                              )}
                             </>
                           )}
                         </div>
@@ -504,7 +582,7 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({
 
                       {/* Right: Amount & Actions */}
                       <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
-                        <span className="text-xl sm:text-2xl font-black text-primary font-mono tracking-tight">
+                        <span className="text-lg sm:text-2xl font-black text-primary font-mono tracking-tight whitespace-nowrap">
                           {formatBaht(sale.grand_total)}
                         </span>
 

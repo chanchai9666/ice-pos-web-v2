@@ -428,12 +428,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="p-4 sm:p-5 border-t-2 border-base-200 bg-base-200/50 flex gap-3">
+          <div className="p-3 sm:p-5 border-t-2 border-base-200 bg-base-200/50 flex gap-2 sm:gap-3">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="btn btn-outline h-16 px-6 text-xl font-bold rounded-2xl border-2"
+              className="btn btn-outline h-12 sm:h-16 px-4 sm:px-6 text-base sm:text-xl font-bold rounded-xl sm:rounded-2xl border-2"
             >
               ยกเลิก
             </button>
@@ -446,14 +446,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 (paymentMethod === "CASH" && !isCashSufficient) ||
                 (paymentMethod === "CREDIT" && !selectedCustomer)
               }
-              className="btn btn-success flex-1 h-16 text-2xl font-black rounded-2xl text-white shadow-lg flex items-center justify-center gap-2 active:scale-98"
+              className="btn btn-success flex-1 h-12 sm:h-16 text-base sm:text-2xl font-black rounded-xl sm:rounded-2xl text-white shadow-lg flex items-center justify-center gap-2 active:scale-98 whitespace-nowrap"
             >
               {isSubmitting ? (
-                <span className="loading loading-spinner loading-lg"></span>
+                <span className="loading loading-spinner loading-md sm:loading-lg"></span>
               ) : (
                 <>
-                  <CheckCircle2 className="w-7 h-7" />
-                  <span>บันทึกการขายและพิมพ์ใบเสร็จ</span>
+                  <CheckCircle2 className="w-5 h-5 sm:w-7 sm:h-7 shrink-0" />
+                  <span className="sm:hidden">บันทึก & พิมพ์บิล</span>
+                  <span className="hidden sm:inline">
+                    บันทึกการขายและพิมพ์ใบเสร็จ
+                  </span>
                 </>
               )}
             </button>

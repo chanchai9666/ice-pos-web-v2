@@ -168,11 +168,11 @@ export default function CustomersPage() {
         {/* Page Title & Navigation Tabs */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h2 className="text-3xl font-black text-base-content flex items-center gap-2.5">
-              <Users className="w-8 h-8 text-primary" />
-              จัดการลูกค้าและบัญชีหนี้เงินเชื่อ
+            <h2 className="text-xl sm:text-3xl font-black text-base-content flex items-center gap-2">
+              <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
+              <span>จัดการลูกค้าและบัญชีหนี้เงินเชื่อ</span>
             </h2>
-            <p className="text-sm font-semibold text-base-content/60 mt-1">
+            <p className="text-xs sm:text-sm font-semibold text-base-content/60 mt-0.5 sm:mt-1">
               ดูแลข้อมูลลูกค้า กำหนดวงเงินเครดิต รับชำระหนี้
               และติดตามยอดหนี้ค้างชำระ
             </p>
@@ -206,29 +206,29 @@ export default function CustomersPage() {
         </div>
 
         {/* Tab Controls */}
-        <div className="tabs tabs-boxed bg-base-100 p-1.5 rounded-2xl border-2 border-base-300 w-fit">
+        <div className="tabs tabs-boxed bg-base-100 p-1 sm:p-1.5 rounded-2xl border-2 border-base-300 w-full sm:w-fit overflow-x-auto flex-nowrap">
           <button
             type="button"
             onClick={() => setActiveTab("list")}
-            className={`tab h-11 px-5 font-bold rounded-xl text-base gap-2 transition-all ${
+            className={`tab h-10 sm:h-11 px-3.5 sm:px-5 font-bold rounded-xl text-xs sm:text-base gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${
               activeTab === "list"
                 ? "tab-active bg-primary text-primary-content font-black shadow-xs"
                 : ""
             }`}
           >
-            <Users className="w-5 h-5" />
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>ทะเบียนลูกค้า ({customers.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("aging")}
-            className={`tab h-11 px-5 font-bold rounded-xl text-base gap-2 transition-all ${
+            className={`tab h-10 sm:h-11 px-3.5 sm:px-5 font-bold rounded-xl text-xs sm:text-base gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${
               activeTab === "aging"
                 ? "tab-active bg-primary text-primary-content font-black shadow-xs"
                 : ""
             }`}
           >
-            <TrendingDown className="w-5 h-5" />
+            <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>รายงานลูกหนี้ค้างชำระ (AR Aging)</span>
           </button>
         </div>
@@ -237,7 +237,7 @@ export default function CustomersPage() {
         {activeTab === "list" && (
           <div className="card bg-base-100 border-2 border-base-300 rounded-3xl overflow-hidden shadow-xs">
             {/* Table Controls / Search */}
-            <div className="p-4 sm:p-5 border-b-2 border-base-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div className="p-3 sm:p-5 border-b-2 border-base-200 flex flex-col sm:flex-row justify-between items-center gap-2.5 sm:gap-3">
               <div className="relative w-full sm:w-96">
                 <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-base-content/50" />
                 <input
@@ -245,7 +245,7 @@ export default function CustomersPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="ค้นหาชื่อ, เบอร์โทร, อีเมล..."
-                  className="input input-bordered w-full h-12 pl-11 pr-4 font-bold rounded-2xl"
+                  className="input input-bordered w-full h-11 sm:h-12 pl-11 pr-4 font-bold rounded-2xl text-sm sm:text-base"
                 />
               </div>
 
@@ -253,7 +253,7 @@ export default function CustomersPage() {
                 type="button"
                 onClick={loadCustomers}
                 disabled={isLoading}
-                className="btn btn-outline h-12 px-4 rounded-2xl font-bold gap-2"
+                className="btn btn-outline h-11 sm:h-12 px-3 sm:px-4 rounded-2xl font-bold gap-2 shrink-0 self-end sm:self-auto"
               >
                 <RefreshCw
                   className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
@@ -263,7 +263,7 @@ export default function CustomersPage() {
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto p-4">
+            <div className="overflow-x-auto p-2 sm:p-4">
               {isLoading ? (
                 <div className="text-center py-16">
                   <span className="loading loading-spinner loading-lg text-primary"></span>
@@ -284,9 +284,9 @@ export default function CustomersPage() {
                   </p>
                 </div>
               ) : (
-                <table className="table table-zebra w-full text-base">
+                <table className="table table-zebra w-full text-sm sm:text-base min-w-[760px]">
                   <thead>
-                    <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
+                    <tr className="border-b-2 border-base-300 text-xs sm:text-sm font-bold text-base-content/70">
                       <th>ชื่อลูกค้า / ข้อมูลติดต่อ</th>
                       <th>ประเภท</th>
                       <th className="text-right">วงเงินเครดิต</th>
@@ -312,7 +312,7 @@ export default function CustomersPage() {
                       return (
                         <tr key={cust.id} className="hover">
                           <td>
-                            <div className="font-bold text-lg text-base-content">
+                            <div className="font-bold text-base sm:text-lg text-base-content">
                               {cust.name}
                             </div>
                             <div className="text-xs text-base-content/60 font-mono">
@@ -322,22 +322,22 @@ export default function CustomersPage() {
                           </td>
                           <td>
                             {cust.is_member ? (
-                              <span className="badge badge-primary font-bold text-xs">
+                              <span className="badge badge-primary font-bold text-xs whitespace-nowrap">
                                 สมาชิก
                               </span>
                             ) : (
-                              <span className="badge badge-ghost font-bold text-xs">
+                              <span className="badge badge-ghost font-bold text-xs whitespace-nowrap">
                                 ทั่วไป
                               </span>
                             )}
                           </td>
-                          <td className="text-right font-bold text-base-content">
+                          <td className="text-right font-bold text-base-content whitespace-nowrap font-mono">
                             {formatBaht(limit)}
                           </td>
-                          <td className="text-right font-black text-error text-lg">
+                          <td className="text-right font-black text-error text-base sm:text-lg whitespace-nowrap font-mono">
                             {formatBaht(debt)}
                           </td>
-                          <td className="text-right font-bold text-success">
+                          <td className="text-right font-bold text-success whitespace-nowrap font-mono">
                             {formatBaht(available)}
                           </td>
                           <td>

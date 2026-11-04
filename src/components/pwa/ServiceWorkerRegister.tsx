@@ -27,13 +27,12 @@ export function ServiceWorkerRegister() {
       "serviceWorker" in navigator &&
       process.env.NODE_ENV !== "production"
     ) {
-      // In development, also register to allow offline testing
-      navigator.serviceWorker
-        .register("/sw.js")
-        .then((registration) => {
-          console.log("Dev Service Worker registered:", registration.scope);
-        })
-        .catch(() => {});
+      // In development, unregister any active service workers to prevent caching stale HMR chunks
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister();
+        }
+      });
     }
   }, []);
 

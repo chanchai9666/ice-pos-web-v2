@@ -345,9 +345,9 @@ export default function CatalogPage() {
                     </p>
                   </div>
                 ) : (
-                  <table className="table table-zebra w-full text-base">
+                  <table className="table table-zebra w-full text-sm sm:text-base min-w-[720px]">
                     <thead>
-                      <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
+                      <tr className="border-b-2 border-base-300 text-xs sm:text-sm font-bold text-base-content/70">
                         <th className="w-16">รูป</th>
                         <th>รหัส / บาร์โค้ด</th>
                         <th>ชื่อสินค้า</th>
@@ -385,29 +385,29 @@ export default function CatalogPage() {
                               </div>
                             </td>
                             <td>
-                              <div className="font-mono font-bold text-sm text-base-content">
+                              <div className="font-mono font-bold text-sm text-base-content whitespace-nowrap">
                                 {p.code}
                               </div>
-                              <div className="font-mono text-xs text-base-content/60 flex items-center gap-1">
+                              <div className="font-mono text-xs text-base-content/60 flex items-center gap-1 whitespace-nowrap">
                                 {p.barcode && (
                                   <Barcode className="w-3.5 h-3.5" />
                                 )}
                                 <span>{p.barcode || "-"}</span>
                               </div>
                             </td>
-                            <td className="font-bold text-base text-base-content">
+                            <td className="font-bold text-sm sm:text-base text-base-content">
                               {p.name}
                             </td>
                             <td>
-                              <span className="badge badge-ghost font-bold text-xs gap-1">
+                              <span className="badge badge-ghost font-bold text-xs gap-1 whitespace-nowrap">
                                 <Tag className="w-3 h-3" />
                                 {catName}
                               </span>
                             </td>
-                            <td className="text-right font-black text-primary text-lg">
+                            <td className="text-right font-black text-primary text-base sm:text-lg whitespace-nowrap font-mono">
                               {formatBaht(priceSatang)}
                             </td>
-                            <td className="text-right font-semibold text-base-content/70">
+                            <td className="text-right font-semibold text-base-content/70 whitespace-nowrap font-mono">
                               {costSatang > 0 ? formatBaht(costSatang) : "-"}
                             </td>
                             <td>
@@ -506,7 +506,7 @@ export default function CatalogPage() {
                     </p>
                   </div>
                 ) : (
-                  <table className="table table-zebra w-full text-base">
+                  <table className="table table-zebra w-full text-sm sm:text-base min-w-[620px]">
                     <thead>
                       <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
                         <th className="w-24 text-center">ลำดับ (Sort)</th>

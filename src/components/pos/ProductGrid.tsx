@@ -95,7 +95,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
       </div>
 
       {/* Products Grid */}
-      <div className="flex-1 overflow-y-auto pr-1">
+      <div className="flex-1 overflow-y-auto pr-1 pb-24 lg:pb-0">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-base-content/60">
             <span className="loading loading-spinner loading-lg text-primary"></span>
