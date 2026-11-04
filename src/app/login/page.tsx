@@ -63,9 +63,9 @@ export default function LoginPage() {
       </header>
 
       {/* Main Card Container */}
-      <main className="flex-1 flex items-center justify-center py-6">
-        <div className="card bg-base-100 shadow-xl border border-base-300 w-full max-w-md p-6 sm:p-8 rounded-3xl">
-          <div className="text-center mb-6">
+      <main className="flex-1 flex items-center justify-center py-2 sm:py-6">
+        <div className="card bg-base-100 shadow-xl border border-base-300 w-full max-w-md p-4 sm:p-8 rounded-3xl">
+          <div className="text-center mb-3 sm:mb-6">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-base-content">
               {mode === "pin"
                 ? "เข้าสู่ระบบแคชเชียร์"
@@ -80,7 +80,7 @@ export default function LoginPage() {
 
           {/* Error Alert */}
           {errorMessage && (
-            <div className="alert alert-error mb-6 rounded-2xl text-base font-bold shadow-sm flex items-center gap-3">
+            <div className="alert alert-error mb-4 sm:mb-6 rounded-2xl text-base font-bold shadow-sm flex items-center gap-3">
               <AlertCircle className="w-6 h-6 shrink-0" />
               <span>{errorMessage}</span>
             </div>

@@ -47,6 +47,12 @@ export default function ReportsPage() {
     setIsLoading(true);
     setError(null);
     try {
+      // Backend /sales compares occurred_at <= end_date (interpreted as midnight),
+      // so calculate next day for end_date to include sales throughout the selected date.
+      const d = new Date(selectedDate);
+      d.setDate(d.getDate() + 1);
+      const nextDate = d.toISOString().split("T")[0];
+
       const [sumRes, bestRes, salesRes] = await Promise.all([
         apiClient.get<{ data: DailySalesSummary; success: boolean }>(
           `/reports/sales-summary?date=${selectedDate}`
@@ -55,7 +61,7 @@ export default function ReportsPage() {
           `/reports/best-sellers?start_date=${selectedDate}&end_date=${selectedDate}&limit=20`
         ),
         apiClient.get<{ data: Sale[]; success: boolean }>(
-          `/sales?start_date=${selectedDate}&end_date=${selectedDate}&limit=50`
+          `/sales?start_date=${selectedDate}&end_date=${nextDate}&limit=50`
         ),
       ]);
 
@@ -342,6 +348,25 @@ export default function ReportsPage() {
           </div>
         </div>
       </main>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div className="bg-base-100 p-6 sm:p-8 rounded-3xl shadow-2xl border-2 border-base-300 flex flex-col items-center gap-3 max-w-xs w-full text-center">
+            <span className="loading loading-spinner loading-lg text-primary"></span>
+            <div className="font-black text-lg text-base-content">
+              กำลังโหลดข้อมูลรายงาน...
+            </div>
+            <p className="text-xs font-semibold text-base-content/60">
+              กรุณารอสักครู่ ระบบกำลังประมวลผลข้อมูล
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

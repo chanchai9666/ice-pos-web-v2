@@ -186,75 +186,148 @@ export default function UsersPage() {
                 <p className="text-xl font-bold">ยังไม่มีข้อมูลผู้ใช้งาน</p>
               </div>
             ) : (
-              <table className="table table-zebra w-full text-base">
-                <thead>
-                  <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
-                    <th>ชื่อผู้ใช้ (Username)</th>
-                    <th>ชื่อที่แสดง (Display Name)</th>
-                    <th>สิทธิ์การใช้งาน (Role)</th>
-                    <th>สถานะ</th>
-                    <th>วันที่สร้าง</th>
-                    <th className="text-center">การจัดการ</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <>
+                {/* Mobile Card List View */}
+                <div className="block sm:hidden space-y-3">
                   {users.map((u) => {
                     const isAdmin = u.role?.toUpperCase() === "ADMIN";
                     return (
-                      <tr key={u.id} className="hover">
-                        <td className="font-mono font-bold text-base-content">
-                          {u.username}
-                        </td>
-                        <td className="font-bold text-base text-base-content">
-                          {u.display_name || u.full_name || "-"}
-                        </td>
-                        <td>
-                          {isAdmin ? (
-                            <span className="badge badge-error text-white font-bold text-xs gap-1 py-2 px-2.5">
-                              <ShieldAlert className="w-3.5 h-3.5" />
-                              ADMIN
-                            </span>
-                          ) : (
-                            <span className="badge badge-info text-white font-bold text-xs gap-1 py-2 px-2.5">
-                              <ShieldCheck className="w-3.5 h-3.5" />
-                              CASHIER
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          {u.is_active ? (
-                            <span className="badge badge-success text-white font-bold text-xs gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              เปิดใช้งาน
-                            </span>
-                          ) : (
-                            <span className="badge badge-ghost text-base-content/50 font-bold text-xs gap-1">
-                              <XCircle className="w-3 h-3" />
-                              ระงับการใช้งาน
-                            </span>
-                          )}
-                        </td>
-                        <td className="text-xs font-mono text-base-content/70 whitespace-nowrap">
-                          {u.created_at
-                            ? new Date(u.created_at).toLocaleDateString("th-TH")
-                            : "-"}
-                        </td>
-                        <td className="text-center">
+                      <div
+                        key={u.id}
+                        className="card bg-base-200/50 border border-base-300 p-3.5 rounded-2xl space-y-2.5"
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <div className="font-bold text-base text-base-content">
+                              {u.display_name || u.full_name || u.username}
+                            </div>
+                            <div className="font-mono text-xs text-base-content/60">
+                              @{u.username}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isAdmin ? (
+                              <span className="badge badge-error text-white font-bold text-xs gap-1">
+                                <ShieldAlert className="w-3 h-3" />
+                                ADMIN
+                              </span>
+                            ) : (
+                              <span className="badge badge-info text-white font-bold text-xs gap-1">
+                                <ShieldCheck className="w-3 h-3" />
+                                CASHIER
+                              </span>
+                            )}
+                            {u.is_active ? (
+                              <span className="badge badge-success text-white font-bold text-xs">
+                                เปิดใช้งาน
+                              </span>
+                            ) : (
+                              <span className="badge badge-ghost text-base-content/50 font-bold text-xs">
+                                ระงับ
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-base-200">
+                          <span className="text-xs font-mono text-base-content/60">
+                            สร้าง:{" "}
+                            {u.created_at
+                              ? new Date(u.created_at).toLocaleDateString(
+                                  "th-TH"
+                                )
+                              : "-"}
+                          </span>
                           <button
                             type="button"
                             onClick={() => setSelectedUserForPin(u)}
                             className="btn btn-sm btn-outline font-bold rounded-xl gap-1.5"
                             title="รีเซ็ตรหัส PIN เข้าใช้งานหน้าร้าน"
                           >
-                            <KeyRound className="w-4 h-4 text-primary" />
+                            <KeyRound className="w-3.5 h-3.5 text-primary" />
                             <span>รีเซ็ต PIN</span>
                           </button>
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="table table-zebra w-full text-base">
+                    <thead>
+                      <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
+                        <th>ชื่อผู้ใช้ (Username)</th>
+                        <th>ชื่อที่แสดง (Display Name)</th>
+                        <th>สิทธิ์การใช้งาน (Role)</th>
+                        <th>สถานะ</th>
+                        <th>วันที่สร้าง</th>
+                        <th className="text-center">การจัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u) => {
+                        const isAdmin = u.role?.toUpperCase() === "ADMIN";
+                        return (
+                          <tr key={u.id} className="hover">
+                            <td className="font-mono font-bold text-base-content">
+                              {u.username}
+                            </td>
+                            <td className="font-bold text-base text-base-content">
+                              {u.display_name || u.full_name || "-"}
+                            </td>
+                            <td>
+                              {isAdmin ? (
+                                <span className="badge badge-error text-white font-bold text-xs gap-1 py-2 px-2.5">
+                                  <ShieldAlert className="w-3.5 h-3.5" />
+                                  ADMIN
+                                </span>
+                              ) : (
+                                <span className="badge badge-info text-white font-bold text-xs gap-1 py-2 px-2.5">
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  CASHIER
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              {u.is_active ? (
+                                <span className="badge badge-success text-white font-bold text-xs gap-1">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  เปิดใช้งาน
+                                </span>
+                              ) : (
+                                <span className="badge badge-ghost text-base-content/50 font-bold text-xs gap-1">
+                                  <XCircle className="w-3 h-3" />
+                                  ระงับการใช้งาน
+                                </span>
+                              )}
+                            </td>
+                            <td className="text-xs font-mono text-base-content/70 whitespace-nowrap">
+                              {u.created_at
+                                ? new Date(u.created_at).toLocaleDateString(
+                                    "th-TH"
+                                  )
+                                : "-"}
+                            </td>
+                            <td className="text-center">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedUserForPin(u)}
+                                className="btn btn-sm btn-outline font-bold rounded-xl gap-1.5"
+                                title="รีเซ็ตรหัส PIN เข้าใช้งานหน้าร้าน"
+                              >
+                                <KeyRound className="w-4 h-4 text-primary" />
+                                <span>รีเซ็ต PIN</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -36,12 +36,12 @@ export const BanknoteButtons: React.FC<BanknoteButtonsProps> = ({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {/* Exact amount button */}
         <button
           type="button"
           onClick={() => onSelectAmount(totalBaht)}
-          className={`btn h-14 text-xl sm:text-2xl font-black rounded-2xl border-2 transition-all active:scale-95 ${
+          className={`btn h-11 sm:h-14 text-base sm:text-2xl font-black rounded-xl sm:rounded-2xl border-2 transition-all active:scale-95 ${
             isExactActive
               ? "btn-primary text-white border-primary shadow-md scale-101"
               : "btn-outline bg-base-100 text-base-content border-base-300 hover:bg-primary hover:border-primary hover:text-white"
@@ -58,7 +58,7 @@ export const BanknoteButtons: React.FC<BanknoteButtonsProps> = ({
               key={amount}
               type="button"
               onClick={() => onSelectAmount(amount)}
-              className={`btn h-14 text-xl sm:text-2xl font-black rounded-2xl border-2 transition-all active:scale-95 ${
+              className={`btn h-11 sm:h-14 text-base sm:text-2xl font-black rounded-xl sm:rounded-2xl border-2 transition-all active:scale-95 ${
                 isSelected
                   ? "btn-primary text-white border-primary shadow-md scale-101"
                   : "btn-outline bg-base-100 text-base-content border-base-300 hover:bg-primary hover:border-primary hover:text-white"

@@ -284,19 +284,9 @@ export default function CustomersPage() {
                   </p>
                 </div>
               ) : (
-                <table className="table table-zebra w-full text-sm sm:text-base min-w-[760px]">
-                  <thead>
-                    <tr className="border-b-2 border-base-300 text-xs sm:text-sm font-bold text-base-content/70">
-                      <th>ชื่อลูกค้า / ข้อมูลติดต่อ</th>
-                      <th>ประเภท</th>
-                      <th className="text-right">วงเงินเครดิต</th>
-                      <th className="text-right">ยอดหนี้คงค้าง</th>
-                      <th className="text-right">วงเงินคงเหลือ</th>
-                      <th>สถานะ</th>
-                      <th className="text-center">การจัดการ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <>
+                  {/* Mobile Card List View */}
+                  <div className="block sm:hidden space-y-3">
                     {filtered.map((cust) => {
                       const limit =
                         cust.credit_account?.credit_limit ??
@@ -310,102 +300,248 @@ export default function CustomersPage() {
                       const status = cust.credit_account?.status || "OK";
 
                       return (
-                        <tr key={cust.id} className="hover">
-                          <td>
-                            <div className="font-bold text-base sm:text-lg text-base-content">
-                              {cust.name}
+                        <div
+                          key={cust.id}
+                          className="card bg-base-200/50 border border-base-300 p-3.5 rounded-2xl space-y-3"
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <div className="font-bold text-base text-base-content">
+                                {cust.name}
+                              </div>
+                              <div className="text-xs text-base-content/60 font-mono">
+                                {cust.phone || "ไม่ระบุเบอร์โทร"}
+                                {cust.email ? ` • ${cust.email}` : ""}
+                              </div>
                             </div>
-                            <div className="text-xs text-base-content/60 font-mono">
-                              {cust.phone || "ไม่ระบุเบอร์โทร"}
-                              {cust.email ? ` • ${cust.email}` : ""}
-                            </div>
-                          </td>
-                          <td>
-                            {cust.is_member ? (
-                              <span className="badge badge-primary font-bold text-xs whitespace-nowrap">
-                                สมาชิก
-                              </span>
-                            ) : (
-                              <span className="badge badge-ghost font-bold text-xs whitespace-nowrap">
-                                ทั่วไป
-                              </span>
-                            )}
-                          </td>
-                          <td className="text-right font-bold text-base-content whitespace-nowrap font-mono">
-                            {formatBaht(limit)}
-                          </td>
-                          <td className="text-right font-black text-error text-base sm:text-lg whitespace-nowrap font-mono">
-                            {formatBaht(debt)}
-                          </td>
-                          <td className="text-right font-bold text-success whitespace-nowrap font-mono">
-                            {formatBaht(available)}
-                          </td>
-                          <td>
-                            {status === "OVER_LIMIT" ? (
-                              <span className="badge badge-error text-white font-bold text-xs">
-                                เกินวงเงิน
-                              </span>
-                            ) : status === "OVERDUE" ? (
-                              <span className="badge badge-warning text-white font-bold text-xs">
-                                เกินกำหนด
-                              </span>
-                            ) : (
-                              <span className="badge badge-success text-white font-bold text-xs">
-                                ปกติ
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                              {debt > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedPayCustomer(cust)}
-                                  className="btn btn-sm btn-success text-white font-bold rounded-xl gap-1 shadow-xs"
-                                  title="รับชำระหนี้"
-                                >
-                                  <DollarSign className="w-4 h-4" />
-                                  <span>รับชำระ</span>
-                                </button>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {cust.is_member && (
+                                <span className="badge badge-primary font-bold text-xs">
+                                  สมาชิก
+                                </span>
                               )}
-
-                              <button
-                                type="button"
-                                onClick={() => setSelectedHistoryCustomer(cust)}
-                                className="btn btn-sm btn-outline font-bold rounded-xl gap-1"
-                                title="ประวัติการเคลื่อนไหวหนี้"
-                              >
-                                <History className="w-4 h-4" />
-                                <span>ประวัติ</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setSelectedLimitCustomer(cust)}
-                                className="btn btn-sm btn-ghost font-bold rounded-xl gap-1"
-                                title="ปรับวงเงินเครดิต"
-                              >
-                                <ShieldCheck className="w-4 h-4" />
-                                <span>วงเงิน</span>
-                              </button>
-
-                              {debt <= 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteCustomer(cust)}
-                                  className="btn btn-sm btn-ghost text-error rounded-xl"
-                                  title="ลบลูกค้า"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                              {status === "OVER_LIMIT" ? (
+                                <span className="badge badge-error text-white font-bold text-xs">
+                                  เกินวงเงิน
+                                </span>
+                              ) : status === "OVERDUE" ? (
+                                <span className="badge badge-warning text-white font-bold text-xs">
+                                  เกินกำหนด
+                                </span>
+                              ) : (
+                                <span className="badge badge-success text-white font-bold text-xs">
+                                  ปกติ
+                                </span>
                               )}
                             </div>
-                          </td>
-                        </tr>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 bg-base-100 p-2.5 rounded-xl border border-base-200 text-center font-mono">
+                            <div>
+                              <div className="text-[11px] text-base-content/60">
+                                วงเงิน
+                              </div>
+                              <div className="font-bold text-xs">
+                                {formatBaht(limit)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-base-content/60">
+                                หนี้ค้าง
+                              </div>
+                              <div className="font-black text-xs text-error">
+                                {formatBaht(debt)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-base-content/60">
+                                คงเหลือ
+                              </div>
+                              <div className="font-bold text-xs text-success">
+                                {formatBaht(available)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-base-200">
+                            {debt > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPayCustomer(cust)}
+                                className="btn btn-sm btn-success text-white font-bold rounded-xl gap-1 shadow-xs"
+                                title="รับชำระหนี้"
+                              >
+                                <DollarSign className="w-3.5 h-3.5" />
+                                <span>รับชำระ</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedHistoryCustomer(cust)}
+                              className="btn btn-sm btn-outline font-bold rounded-xl gap-1"
+                              title="ประวัติการเคลื่อนไหวหนี้"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                              <span>ประวัติ</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedLimitCustomer(cust)}
+                              className="btn btn-sm btn-ghost font-bold rounded-xl gap-1"
+                              title="ปรับวงเงินเครดิต"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>วงเงิน</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCustomer(cust)}
+                              className="btn btn-sm btn-ghost text-error font-bold rounded-xl"
+                              title="ลบลูกค้า"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="table table-zebra w-full text-sm sm:text-base min-w-[760px]">
+                      <thead>
+                        <tr className="border-b-2 border-base-300 text-xs sm:text-sm font-bold text-base-content/70">
+                          <th>ชื่อลูกค้า / ข้อมูลติดต่อ</th>
+                          <th>ประเภท</th>
+                          <th className="text-right">วงเงินเครดิต</th>
+                          <th className="text-right">ยอดหนี้คงค้าง</th>
+                          <th className="text-right">วงเงินคงเหลือ</th>
+                          <th>สถานะ</th>
+                          <th className="text-center">การจัดการ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map((cust) => {
+                          const limit =
+                            cust.credit_account?.credit_limit ??
+                            cust.credit_limit ??
+                            0;
+                          const debt =
+                            cust.credit_account?.outstanding_balance ??
+                            cust.current_balance ??
+                            0;
+                          const available = Math.max(0, limit - debt);
+                          const status = cust.credit_account?.status || "OK";
+
+                          return (
+                            <tr key={cust.id} className="hover">
+                              <td>
+                                <div className="font-bold text-base sm:text-lg text-base-content">
+                                  {cust.name}
+                                </div>
+                                <div className="text-xs text-base-content/60 font-mono">
+                                  {cust.phone || "ไม่ระบุเบอร์โทร"}
+                                  {cust.email ? ` • ${cust.email}` : ""}
+                                </div>
+                              </td>
+                              <td>
+                                {cust.is_member ? (
+                                  <span className="badge badge-primary font-bold text-xs whitespace-nowrap">
+                                    สมาชิก
+                                  </span>
+                                ) : (
+                                  <span className="badge badge-ghost font-bold text-xs whitespace-nowrap">
+                                    ทั่วไป
+                                  </span>
+                                )}
+                              </td>
+                              <td className="text-right font-bold text-base-content whitespace-nowrap font-mono">
+                                {formatBaht(limit)}
+                              </td>
+                              <td className="text-right font-black text-error text-base sm:text-lg whitespace-nowrap font-mono">
+                                {formatBaht(debt)}
+                              </td>
+                              <td className="text-right font-bold text-success whitespace-nowrap font-mono">
+                                {formatBaht(available)}
+                              </td>
+                              <td>
+                                {status === "OVER_LIMIT" ? (
+                                  <span className="badge badge-error text-white font-bold text-xs">
+                                    เกินวงเงิน
+                                  </span>
+                                ) : status === "OVERDUE" ? (
+                                  <span className="badge badge-warning text-white font-bold text-xs">
+                                    เกินกำหนด
+                                  </span>
+                                ) : (
+                                  <span className="badge badge-success text-white font-bold text-xs">
+                                    ปกติ
+                                  </span>
+                                )}
+                              </td>
+                              <td>
+                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                  {debt > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedPayCustomer(cust)
+                                      }
+                                      className="btn btn-sm btn-success text-white font-bold rounded-xl gap-1 shadow-xs"
+                                      title="รับชำระหนี้"
+                                    >
+                                      <DollarSign className="w-4 h-4" />
+                                      <span>รับชำระ</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedHistoryCustomer(cust)
+                                    }
+                                    className="btn btn-sm btn-outline font-bold rounded-xl gap-1"
+                                    title="ประวัติการเคลื่อนไหวหนี้"
+                                  >
+                                    <History className="w-4 h-4" />
+                                    <span>ประวัติ</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedLimitCustomer(cust)
+                                    }
+                                    className="btn btn-sm btn-ghost font-bold rounded-xl gap-1"
+                                    title="ปรับวงเงินเครดิต"
+                                  >
+                                    <ShieldCheck className="w-4 h-4" />
+                                    <span>วงเงิน</span>
+                                  </button>
+
+                                  {debt <= 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteCustomer(cust)}
+                                      className="btn btn-sm btn-ghost text-error rounded-xl"
+                                      title="ลบลูกค้า"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>

@@ -345,23 +345,11 @@ export default function CatalogPage() {
                     </p>
                   </div>
                 ) : (
-                  <table className="table table-zebra w-full text-sm sm:text-base min-w-[720px]">
-                    <thead>
-                      <tr className="border-b-2 border-base-300 text-xs sm:text-sm font-bold text-base-content/70">
-                        <th className="w-16">รูป</th>
-                        <th>รหัส / บาร์โค้ด</th>
-                        <th>ชื่อสินค้า</th>
-                        <th>หมวดหมู่</th>
-                        <th className="text-right">ราคาขาย</th>
-                        <th className="text-right">ต้นทุน</th>
-                        <th>สถานะ</th>
-                        <th className="text-center">การจัดการ</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <>
+                    {/* Mobile Card List View */}
+                    <div className="block sm:hidden space-y-3">
                       {filteredProducts.map((p) => {
                         const priceSatang = p.price ?? p.unit_price ?? 0;
-                        const costSatang = p.cost_price ?? 0;
                         const catName =
                           categories.find((c) => c.id === p.category_id)
                             ?.name ||
@@ -369,9 +357,12 @@ export default function CatalogPage() {
                           "-";
 
                         return (
-                          <tr key={p.id} className="hover">
-                            <td>
-                              <div className="w-12 h-12 rounded-xl bg-base-200 overflow-hidden flex items-center justify-center">
+                          <div
+                            key={p.id}
+                            className="card bg-base-200/50 border border-base-300 p-3.5 rounded-2xl flex flex-col gap-2.5"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-14 h-14 rounded-xl bg-base-200 overflow-hidden flex items-center justify-center shrink-0 border border-base-300">
                                 {p.image_url ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
@@ -380,64 +371,157 @@ export default function CatalogPage() {
                                     className="w-full h-full object-cover"
                                   />
                                 ) : (
-                                  <ImageIcon className="w-5 h-5 text-base-content/30" />
+                                  <ImageIcon className="w-6 h-6 text-base-content/30" />
                                 )}
                               </div>
-                            </td>
-                            <td>
-                              <div className="font-mono font-bold text-sm text-base-content whitespace-nowrap">
-                                {p.code}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-bold text-base text-base-content truncate">
+                                  {p.name}
+                                </div>
+                                <div className="text-xs text-base-content/60 font-mono">
+                                  {p.code ? `รหัส: ${p.code}` : ""}
+                                  {p.barcode ? ` • ${p.barcode}` : ""}
+                                </div>
+                                <div className="mt-1 flex items-center gap-1.5">
+                                  <span className="badge badge-ghost font-bold text-[11px] gap-1">
+                                    <Tag className="w-3 h-3" />
+                                    {catName}
+                                  </span>
+                                  {p.is_active !== false ? (
+                                    <span className="badge badge-success text-white font-bold text-[11px]">
+                                      เปิดขาย
+                                    </span>
+                                  ) : (
+                                    <span className="badge badge-ghost text-base-content/50 font-bold text-[11px]">
+                                      ปิดการขาย
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              <div className="font-mono text-xs text-base-content/60 flex items-center gap-1 whitespace-nowrap">
-                                {p.barcode && (
-                                  <Barcode className="w-3.5 h-3.5" />
-                                )}
-                                <span>{p.barcode || "-"}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2 border-t border-base-200">
+                              <div>
+                                <div className="text-[11px] text-base-content/60">
+                                  ราคาขาย
+                                </div>
+                                <div className="font-black text-primary text-lg font-mono">
+                                  {formatBaht(priceSatang)}
+                                </div>
                               </div>
-                            </td>
-                            <td className="font-bold text-sm sm:text-base text-base-content">
-                              {p.name}
-                            </td>
-                            <td>
-                              <span className="badge badge-ghost font-bold text-xs gap-1 whitespace-nowrap">
-                                <Tag className="w-3 h-3" />
-                                {catName}
-                              </span>
-                            </td>
-                            <td className="text-right font-black text-primary text-base sm:text-lg whitespace-nowrap font-mono">
-                              {formatBaht(priceSatang)}
-                            </td>
-                            <td className="text-right font-semibold text-base-content/70 whitespace-nowrap font-mono">
-                              {costSatang > 0 ? formatBaht(costSatang) : "-"}
-                            </td>
-                            <td>
-                              {p.is_active !== false ? (
-                                <span className="badge badge-success text-white font-bold text-xs gap-1">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  เปิดขาย
-                                </span>
-                              ) : (
-                                <span className="badge badge-ghost text-base-content/50 font-bold text-xs gap-1">
-                                  <XCircle className="w-3 h-3" />
-                                  ปิดการขาย
-                                </span>
-                              )}
-                            </td>
-                            <td className="text-center">
                               <button
                                 type="button"
                                 onClick={() => handleEdit(p)}
                                 className="btn btn-sm btn-outline font-bold rounded-xl gap-1.5"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="w-3.5 h-3.5" />
                                 <span>แก้ไข</span>
                               </button>
-                            </td>
-                          </tr>
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+
+                    {/* Desktop Table View */}
+                    <div className="hidden sm:block overflow-x-auto">
+                      <table className="table table-zebra w-full text-sm sm:text-base min-w-[720px]">
+                        <thead>
+                          <tr className="border-b-2 border-base-300 text-xs sm:text-sm font-bold text-base-content/70">
+                            <th className="w-16">รูป</th>
+                            <th>รหัส / บาร์โค้ด</th>
+                            <th>ชื่อสินค้า</th>
+                            <th>หมวดหมู่</th>
+                            <th className="text-right">ราคาขาย</th>
+                            <th className="text-right">ต้นทุน</th>
+                            <th>สถานะ</th>
+                            <th className="text-center">การจัดการ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredProducts.map((p) => {
+                            const priceSatang = p.price ?? p.unit_price ?? 0;
+                            const costSatang = p.cost_price ?? 0;
+                            const catName =
+                              categories.find((c) => c.id === p.category_id)
+                                ?.name ||
+                              p.category?.name ||
+                              "-";
+
+                            return (
+                              <tr key={p.id} className="hover">
+                                <td>
+                                  <div className="w-12 h-12 rounded-xl bg-base-200 overflow-hidden flex items-center justify-center">
+                                    {p.image_url ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={p.image_url}
+                                        alt={p.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <ImageIcon className="w-5 h-5 text-base-content/30" />
+                                    )}
+                                  </div>
+                                </td>
+                                <td>
+                                  <div className="font-mono font-bold text-sm text-base-content whitespace-nowrap">
+                                    {p.code}
+                                  </div>
+                                  <div className="font-mono text-xs text-base-content/60 flex items-center gap-1 whitespace-nowrap">
+                                    {p.barcode && (
+                                      <Barcode className="w-3.5 h-3.5" />
+                                    )}
+                                    <span>{p.barcode || "-"}</span>
+                                  </div>
+                                </td>
+                                <td className="font-bold text-sm sm:text-base text-base-content">
+                                  {p.name}
+                                </td>
+                                <td>
+                                  <span className="badge badge-ghost font-bold text-xs gap-1 whitespace-nowrap">
+                                    <Tag className="w-3 h-3" />
+                                    {catName}
+                                  </span>
+                                </td>
+                                <td className="text-right font-black text-primary text-base sm:text-lg whitespace-nowrap font-mono">
+                                  {formatBaht(priceSatang)}
+                                </td>
+                                <td className="text-right font-semibold text-base-content/70 whitespace-nowrap font-mono">
+                                  {costSatang > 0
+                                    ? formatBaht(costSatang)
+                                    : "-"}
+                                </td>
+                                <td>
+                                  {p.is_active !== false ? (
+                                    <span className="badge badge-success text-white font-bold text-xs gap-1">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      เปิดขาย
+                                    </span>
+                                  ) : (
+                                    <span className="badge badge-ghost text-base-content/50 font-bold text-xs gap-1">
+                                      <XCircle className="w-3 h-3" />
+                                      ปิดการขาย
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEdit(p)}
+                                    className="btn btn-sm btn-outline font-bold rounded-xl gap-1.5"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                    <span>แก้ไข</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -506,48 +590,40 @@ export default function CatalogPage() {
                     </p>
                   </div>
                 ) : (
-                  <table className="table table-zebra w-full text-sm sm:text-base min-w-[620px]">
-                    <thead>
-                      <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
-                        <th className="w-24 text-center">ลำดับ (Sort)</th>
-                        <th>ชื่อหมวดหมู่</th>
-                        <th>จำนวนสินค้า</th>
-                        <th>รหัสอ้างอิง (UUID)</th>
-                        <th className="text-center">การจัดการ</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <>
+                    {/* Mobile Card List View for Categories */}
+                    <div className="block sm:hidden space-y-3">
                       {filteredCategories.map((cat) => {
                         const productCount = products.filter(
                           (p) => p.category_id === cat.id
                         ).length;
 
                         return (
-                          <tr key={cat.id} className="hover">
-                            <td className="text-center font-mono font-bold text-base text-primary">
-                              <span className="badge badge-ghost font-mono font-bold px-3 py-2 text-sm rounded-lg">
-                                {cat.sort_order ?? 0}
-                              </span>
-                            </td>
-                            <td>
-                              <div className="font-bold text-base text-base-content flex items-center gap-2">
-                                <Tag className="w-4 h-4 text-primary" />
-                                <span>{cat.name}</span>
+                          <div
+                            key={cat.id}
+                            className="card bg-base-200/50 border border-base-300 p-3.5 rounded-2xl space-y-2.5"
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="badge badge-ghost font-mono font-bold px-2 py-1 text-xs rounded-lg">
+                                  #{cat.sort_order ?? 0}
+                                </span>
+                                <div className="font-bold text-base text-base-content flex items-center gap-1.5">
+                                  <Tag className="w-4 h-4 text-primary" />
+                                  <span>{cat.name}</span>
+                                </div>
                               </div>
-                            </td>
-                            <td>
-                              <span className="badge badge-neutral text-xs font-bold gap-1 px-2.5 py-2 rounded-xl">
-                                <Package className="w-3.5 h-3.5" />
+                              <span className="badge badge-neutral text-xs font-bold gap-1 px-2 py-1 rounded-lg shrink-0">
+                                <Package className="w-3 h-3" />
                                 {productCount} รายการ
                               </span>
-                            </td>
-                            <td>
-                              <span className="font-mono text-xs text-base-content/50">
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2 border-t border-base-200">
+                              <span className="font-mono text-[11px] text-base-content/50 truncate max-w-[140px]">
                                 {cat.id}
                               </span>
-                            </td>
-                            <td className="text-center">
-                              <div className="flex items-center justify-center gap-2">
+                              <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => handleEditCategory(cat)}
@@ -579,12 +655,95 @@ export default function CatalogPage() {
                                   <span>ลบ</span>
                                 </button>
                               </div>
-                            </td>
-                          </tr>
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+
+                    {/* Desktop Table View */}
+                    <div className="hidden sm:block overflow-x-auto">
+                      <table className="table table-zebra w-full text-sm sm:text-base min-w-[620px]">
+                        <thead>
+                          <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
+                            <th className="w-24 text-center">ลำดับ (Sort)</th>
+                            <th>ชื่อหมวดหมู่</th>
+                            <th>จำนวนสินค้า</th>
+                            <th>รหัสอ้างอิง (UUID)</th>
+                            <th className="text-center">การจัดการ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredCategories.map((cat) => {
+                            const productCount = products.filter(
+                              (p) => p.category_id === cat.id
+                            ).length;
+
+                            return (
+                              <tr key={cat.id} className="hover">
+                                <td className="text-center font-mono font-bold text-base text-primary">
+                                  <span className="badge badge-ghost font-mono font-bold px-3 py-2 text-sm rounded-lg">
+                                    {cat.sort_order ?? 0}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div className="font-bold text-base text-base-content flex items-center gap-2">
+                                    <Tag className="w-4 h-4 text-primary" />
+                                    <span>{cat.name}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <span className="badge badge-neutral text-xs font-bold gap-1 px-2.5 py-2 rounded-xl">
+                                    <Package className="w-3.5 h-3.5" />
+                                    {productCount} รายการ
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className="font-mono text-xs text-base-content/50">
+                                    {cat.id}
+                                  </span>
+                                </td>
+                                <td className="text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditCategory(cat)}
+                                      disabled={!isAdmin}
+                                      title={
+                                        !isAdmin
+                                          ? "เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น"
+                                          : "แก้ไขข้อมูลหมวดหมู่"
+                                      }
+                                      className="btn btn-sm btn-outline font-bold rounded-xl gap-1"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                      <span>แก้ไข</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleDeleteCategoryPrompt(cat)
+                                      }
+                                      disabled={!isAdmin}
+                                      title={
+                                        !isAdmin
+                                          ? "เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น"
+                                          : "ลบหมวดหมู่นี้"
+                                      }
+                                      className="btn btn-sm btn-outline btn-error font-bold rounded-xl gap-1"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>ลบ</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </div>
             </div>

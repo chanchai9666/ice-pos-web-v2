@@ -147,68 +147,91 @@ export const ARAgingTable: React.FC<ARAgingTableProps> = ({ onPayCredit }) => {
               </p>
             </div>
           ) : (
-            <table className="table table-zebra w-full text-sm sm:text-base min-w-[760px]">
-              <thead>
-                <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
-                  <th>ชื่อลูกค้า</th>
-                  <th className="text-right">วงเงิน</th>
-                  <th className="text-right">หนี้รวม</th>
-                  <th className="text-right">0-30 วัน</th>
-                  <th className="text-right">31-60 วัน</th>
-                  <th className="text-right">61-90 วัน</th>
-                  <th className="text-right">เกิน 90 วัน</th>
-                  <th>สถานะ</th>
-                  <th className="text-center">การจัดการ</th>
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              {/* Mobile Card List View */}
+              <div className="block sm:hidden space-y-3">
                 {items.map((item) => {
                   const isOverLimit = item.status === "OVER_LIMIT";
                   const isOverdue = item.status === "OVERDUE";
                   return (
-                    <tr key={item.customer_id} className="hover">
-                      <td>
-                        <div className="font-bold text-base-content">
-                          {item.customer_name}
+                    <div
+                      key={item.customer_id}
+                      className="card bg-base-200/50 border border-base-300 p-3.5 rounded-2xl space-y-3"
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <div className="font-bold text-base text-base-content">
+                            {item.customer_name}
+                          </div>
+                          <div className="text-xs text-base-content/60 font-mono">
+                            {item.phone || "ไม่ระบุเบอร์โทร"}
+                          </div>
                         </div>
-                        <div className="text-xs text-base-content/60 font-mono">
-                          {item.phone || "-"}
+                        <div>
+                          {isOverLimit ? (
+                            <span className="badge badge-error text-white font-bold text-xs">
+                              เกินวงเงิน
+                            </span>
+                          ) : isOverdue ? (
+                            <span className="badge badge-warning text-white font-bold text-xs">
+                              เกินกำหนด
+                            </span>
+                          ) : (
+                            <span className="badge badge-success text-white font-bold text-xs">
+                              ปกติ
+                            </span>
+                          )}
                         </div>
-                      </td>
-                      <td className="text-right font-semibold">
-                        {formatBaht(item.credit_limit)}
-                      </td>
-                      <td className="text-right font-black text-error text-lg">
-                        {formatBaht(item.outstanding_balance)}
-                      </td>
-                      <td className="text-right font-semibold text-success">
-                        {formatBaht(item.current_due)}
-                      </td>
-                      <td className="text-right font-semibold text-warning">
-                        {formatBaht(item.due_30_to_60)}
-                      </td>
-                      <td className="text-right font-semibold text-orange-500">
-                        {formatBaht(item.due_60_to_90)}
-                      </td>
-                      <td className="text-right font-black text-error">
-                        {formatBaht(item.over_90)}
-                      </td>
-                      <td>
-                        {isOverLimit ? (
-                          <span className="badge badge-error text-white font-bold text-xs">
-                            เกินวงเงิน
-                          </span>
-                        ) : isOverdue ? (
-                          <span className="badge badge-warning text-white font-bold text-xs">
-                            เกินกำหนด
-                          </span>
-                        ) : (
-                          <span className="badge badge-success text-white font-bold text-xs">
-                            ปกติ
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-center">
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 bg-base-100 p-2.5 rounded-xl border border-base-200 text-center font-mono">
+                        <div>
+                          <div className="text-[11px] text-base-content/60">
+                            วงเงินเครดิต
+                          </div>
+                          <div className="font-bold text-xs">
+                            {formatBaht(item.credit_limit)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-base-content/60">
+                            ยอดหนี้รวม
+                          </div>
+                          <div className="font-black text-sm text-error">
+                            {formatBaht(item.outstanding_balance)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Aging Buckets breakdown */}
+                      <div className="grid grid-cols-4 gap-1.5 text-center font-mono text-[11px] bg-base-200/60 p-2 rounded-xl">
+                        <div>
+                          <div className="text-base-content/60">0-30 วัน</div>
+                          <div className="font-bold text-success">
+                            {formatBaht(item.current_due)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-base-content/60">31-60 วัน</div>
+                          <div className="font-bold text-warning">
+                            {formatBaht(item.due_30_to_60)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-base-content/60">61-90 วัน</div>
+                          <div className="font-bold text-orange-500">
+                            {formatBaht(item.due_60_to_90)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-base-content/60">&gt;90 วัน</div>
+                          <div className="font-black text-error">
+                            {formatBaht(item.over_90)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-2 border-t border-base-200">
                         <button
                           type="button"
                           onClick={() =>
@@ -225,16 +248,110 @@ export const ARAgingTable: React.FC<ARAgingTableProps> = ({ onPayCredit }) => {
                               },
                             })
                           }
-                          className="btn btn-sm btn-success text-white font-bold rounded-xl"
+                          className="btn btn-sm btn-success text-white font-bold rounded-xl gap-1 shadow-xs"
                         >
-                          รับชำระหนี้
+                          <DollarSign className="w-3.5 h-3.5" />
+                          <span>รับชำระหนี้</span>
                         </button>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="table table-zebra w-full text-sm sm:text-base min-w-[760px]">
+                  <thead>
+                    <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
+                      <th>ชื่อลูกค้า</th>
+                      <th className="text-right">วงเงิน</th>
+                      <th className="text-right">หนี้รวม</th>
+                      <th className="text-right">0-30 วัน</th>
+                      <th className="text-right">31-60 วัน</th>
+                      <th className="text-right">61-90 วัน</th>
+                      <th className="text-right">เกิน 90 วัน</th>
+                      <th>สถานะ</th>
+                      <th className="text-center">การจัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => {
+                      const isOverLimit = item.status === "OVER_LIMIT";
+                      const isOverdue = item.status === "OVERDUE";
+                      return (
+                        <tr key={item.customer_id} className="hover">
+                          <td>
+                            <div className="font-bold text-base-content">
+                              {item.customer_name}
+                            </div>
+                            <div className="text-xs text-base-content/60 font-mono">
+                              {item.phone || "-"}
+                            </div>
+                          </td>
+                          <td className="text-right font-semibold">
+                            {formatBaht(item.credit_limit)}
+                          </td>
+                          <td className="text-right font-black text-error text-lg">
+                            {formatBaht(item.outstanding_balance)}
+                          </td>
+                          <td className="text-right font-semibold text-success">
+                            {formatBaht(item.current_due)}
+                          </td>
+                          <td className="text-right font-semibold text-warning">
+                            {formatBaht(item.due_30_to_60)}
+                          </td>
+                          <td className="text-right font-semibold text-orange-500">
+                            {formatBaht(item.due_60_to_90)}
+                          </td>
+                          <td className="text-right font-black text-error">
+                            {formatBaht(item.over_90)}
+                          </td>
+                          <td>
+                            {isOverLimit ? (
+                              <span className="badge badge-error text-white font-bold text-xs">
+                                เกินวงเงิน
+                              </span>
+                            ) : isOverdue ? (
+                              <span className="badge badge-warning text-white font-bold text-xs">
+                                เกินกำหนด
+                              </span>
+                            ) : (
+                              <span className="badge badge-success text-white font-bold text-xs">
+                                ปกติ
+                              </span>
+                            )}
+                          </td>
+                          <td className="text-center">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onPayCredit({
+                                  id: item.customer_id,
+                                  name: item.customer_name,
+                                  phone: item.phone,
+                                  credit_account: {
+                                    id: "",
+                                    customer_id: item.customer_id,
+                                    credit_limit: item.credit_limit,
+                                    outstanding_balance:
+                                      item.outstanding_balance,
+                                    status: item.status,
+                                  },
+                                })
+                              }
+                              className="btn btn-sm btn-success text-white font-bold rounded-xl"
+                            >
+                              รับชำระหนี้
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
