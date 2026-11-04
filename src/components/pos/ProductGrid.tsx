@@ -9,6 +9,7 @@ import { BarcodeScannerInput } from "./BarcodeScannerInput.tsx";
 import { BarcodeScannerModal } from "../common/BarcodeScannerModal.tsx";
 import { PackageX } from "lucide-react";
 import { useToast } from "../../context/ToastContext.tsx";
+import { formatBaht } from "../../utils/currency.ts";
 
 interface ProductGridProps {
   products: Product[];
@@ -29,7 +30,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // Barcode scan handler
-  const handleScanBarcode = async (barcode: string): Promise<boolean> => {
+  const handleScanBarcode = async (barcode: string) => {
     const trimmed = barcode.trim().toLowerCase();
     const found = products.find(
       (p) =>
@@ -40,7 +41,14 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
 
     if (found) {
       onAddToCart(found);
-      return true;
+      const price = found.unit_price ?? found.price ?? 0;
+      toast.success(`เพิ่ม ${found.name} (${formatBaht(price)}) แล้ว`);
+      return {
+        success: true,
+        product: found,
+        name: found.name,
+        price,
+      };
     }
 
     // Fallback: If not found in local cache, query API directly
@@ -50,14 +58,27 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
       );
       if (res && res.data) {
         onAddToCart(res.data);
-        return true;
+        const price = res.data.unit_price ?? res.data.price ?? 0;
+        toast.success(`เพิ่ม ${res.data.name} (${formatBaht(price)}) แล้ว`);
+        return {
+          success: true,
+          product: res.data,
+          name: res.data.name,
+          price,
+        };
       } else {
         toast.warning(`ไม่พบสินค้าสำหรับบาร์โค้ด: ${barcode}`);
-        return false;
+        return {
+          success: false,
+          message: `ไม่พบสินค้า: ${barcode}`,
+        };
       }
     } catch {
       toast.warning(`ไม่พบสินค้าสำหรับบาร์โค้ด: ${barcode}`);
-      return false;
+      return {
+        success: false,
+        message: `ไม่พบสินค้า: ${barcode}`,
+      };
     }
   };
 
@@ -127,6 +148,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onDetected={handleScanBarcode}
+        continuous={true}
       />
     </div>
   );

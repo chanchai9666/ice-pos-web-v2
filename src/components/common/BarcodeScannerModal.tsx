@@ -15,6 +15,8 @@ import {
   SwitchCamera,
   CheckCircle2,
 } from "lucide-react";
+import { formatBaht } from "../../utils/currency.ts";
+import { Product } from "../../types/api.ts";
 import {
   playBeepSound,
   playErrorSound,
@@ -35,10 +37,22 @@ if (typeof window !== "undefined") {
   });
 }
 
+export interface ScanResultDetail {
+  success: boolean;
+  product?: Product | { name: string; unit_price?: number; price?: number };
+  name?: string;
+  price?: number; // Satang
+  message?: string;
+}
+
+export type ScanDetectedResult = boolean | void | ScanResultDetail;
+
 interface BarcodeScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDetected: (code: string) => boolean | Promise<boolean | void> | void;
+  onDetected: (
+    code: string
+  ) => ScanDetectedResult | Promise<ScanDetectedResult>;
   continuous?: boolean;
   allowContinuous?: boolean;
 }
@@ -67,6 +81,11 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     "idle"
   );
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [lastScannedItem, setLastScannedItem] = useState<{
+    code: string;
+    name?: string;
+    price?: number;
+  } | null>(null);
   const [scannedCount, setScannedCount] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -96,6 +115,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       setScannedCount(0);
       setScanStatus("idle");
       setStatusMessage("");
+      setLastScannedItem(null);
     }
   }, [isOpen, allowContinuous, continuous]);
 
@@ -407,11 +427,22 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                     const result = await Promise.resolve(
                       onDetectedRef.current(code)
                     );
-                    if (result === false) {
+                    const isFailed =
+                      result === false ||
+                      (typeof result === "object" &&
+                        result !== null &&
+                        !result.success);
+
+                    if (isFailed) {
                       playErrorSound();
                       triggerHapticFeedback([100, 50, 100]);
                       setScanStatus("error");
-                      setStatusMessage(`ไม่พบสินค้า: ${code}`);
+                      const errMsg =
+                        typeof result === "object" && result?.message
+                          ? result.message
+                          : `ไม่พบสินค้า: ${code}`;
+                      setStatusMessage(errMsg);
+                      setLastScannedItem(null);
 
                       setTimeout(() => {
                         setScanStatus("idle");
@@ -423,14 +454,40 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                       triggerHapticFeedback(80);
                       setScanStatus("success");
                       setStatusMessage(`สแกนสำเร็จ: ${code}`);
+
+                      let productName: string | undefined;
+                      let productPrice: number | undefined;
+
+                      if (typeof result === "object" && result !== null) {
+                        if (result.name) {
+                          productName = result.name;
+                        } else if (result.product && "name" in result.product) {
+                          productName = result.product.name;
+                        }
+
+                        if (result.price !== undefined) {
+                          productPrice = result.price;
+                        } else if (result.product) {
+                          productPrice =
+                            result.product.unit_price ?? result.product.price;
+                        }
+                      }
+
+                      setLastScannedItem({
+                        code,
+                        name: productName,
+                        price: productPrice,
+                      });
+
                       setScannedCount((c) => c + 1);
 
                       if (isCont) {
                         setTimeout(() => {
                           setScanStatus("idle");
                           setStatusMessage("");
+                          setLastScannedItem(null);
                           isProcessingRef.current = false;
-                        }, 1200);
+                        }, 1500);
                       } else {
                         setTimeout(() => {
                           stopScanner();
@@ -607,23 +664,31 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                   </div>
 
                   {/* Realtime Status / Guidance Pill */}
-                  <div className="mt-4 px-4 py-1.5 rounded-full bg-black/75 backdrop-blur-md text-xs font-bold text-white tracking-wide shadow-lg flex items-center gap-1.5">
+                  <div className="mt-4 px-4 py-2 rounded-2xl bg-black/80 backdrop-blur-md text-white tracking-wide shadow-xl flex flex-col items-center gap-1 max-w-[92%] transition-all">
                     {scanStatus === "success" ? (
                       <>
-                        <CheckCircle2 className="w-4 h-4 text-success" />
-                        <span className="text-success font-black">
-                          {statusMessage}
-                        </span>
+                        <div className="flex items-center gap-1.5 text-xs text-success font-black">
+                          <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                          <span>{statusMessage}</span>
+                        </div>
+                        {lastScannedItem?.name && (
+                          <div className="text-sm font-bold text-white text-center line-clamp-1">
+                            {lastScannedItem.name}
+                          </div>
+                        )}
+                        {lastScannedItem?.price !== undefined && (
+                          <div className="text-xs font-black text-warning">
+                            ราคา {formatBaht(lastScannedItem.price)}
+                          </div>
+                        )}
                       </>
                     ) : scanStatus === "error" ? (
-                      <>
-                        <AlertCircle className="w-4 h-4 text-error" />
-                        <span className="text-error font-black">
-                          {statusMessage}
-                        </span>
-                      </>
+                      <div className="flex items-center gap-1.5 text-xs text-error font-black">
+                        <AlertCircle className="w-4 h-4 text-error shrink-0" />
+                        <span>{statusMessage}</span>
+                      </div>
                     ) : (
-                      <span>
+                      <span className="text-xs font-bold text-center">
                         วางบาร์โค้ดในกรอบ (ระยะ 15–20 ซม.) หลบแสงสะท้อน
                       </span>
                     )}
