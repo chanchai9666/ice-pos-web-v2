@@ -58,6 +58,18 @@ export interface UpdateCategoryRequest {
   sort_order?: number;
 }
 
+export interface ProductImage {
+  id: string;
+  product_id: string;
+  image_url: string;
+  is_primary?: boolean;
+  sort_order?: number;
+  embedding?: number[];
+  embedding_model?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Product {
   id: string;
   category_id: string;
@@ -70,6 +82,7 @@ export interface Product {
   cost_price?: number; // Satang
   unit?: string;
   image_url?: string;
+  images?: ProductImage[];
   is_active?: boolean;
   stock_quantity?: number;
   created_at?: string;

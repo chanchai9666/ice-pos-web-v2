@@ -6,6 +6,7 @@ import type {
   User,
   ARAgingItem,
 } from "../types/api.ts";
+import type { CatalogItemEmbedding } from "./visualMatch.ts";
 
 export interface CachedCashier {
   id: string;
@@ -76,6 +77,7 @@ interface MemoryCache {
   users: User[];
   arAging: ARAgingItem[];
   isHydrated: boolean;
+  cachedEmbeddings: CatalogItemEmbedding[] | null;
 }
 
 const memCache: MemoryCache = {
@@ -88,6 +90,7 @@ const memCache: MemoryCache = {
   users: [],
   arAging: [],
   isHydrated: false,
+  cachedEmbeddings: null,
 };
 
 // Open and initialize IndexedDB database
@@ -155,6 +158,7 @@ if (typeof window !== "undefined") {
     if (cat) {
       const parsed = JSON.parse(cat);
       memCache.products = parsed.products || [];
+      memCache.cachedEmbeddings = null;
       memCache.categories = parsed.categories || [];
     }
     const cust = localStorage.getItem(LS_CUSTOMERS_KEY);
@@ -230,7 +234,10 @@ if (typeof window !== "undefined") {
           getAll<ARAgingItem>(STORES.AR_AGING),
         ]);
 
-      if (prods.length > 0) memCache.products = prods;
+      if (prods.length > 0) {
+        memCache.products = prods;
+        memCache.cachedEmbeddings = null;
+      }
       if (cats.length > 0) memCache.categories = cats;
       if (custs.length > 0) memCache.customers = custs;
       if (sales.length > 0) memCache.offlineSales = sales;
@@ -280,6 +287,7 @@ export const offlineStorage = {
     categories: Category[]
   ): Promise<void> {
     memCache.products = products;
+    memCache.cachedEmbeddings = null;
     memCache.categories = categories;
 
     // Keep localStorage in sync for instant boot fallback
@@ -329,6 +337,7 @@ export const offlineStorage = {
 
   saveCatalog(products: Product[], categories: Category[]): void {
     memCache.products = products;
+    memCache.cachedEmbeddings = null;
     memCache.categories = categories;
     this.saveCatalogAsync(products, categories).catch(console.error);
   },
@@ -358,12 +367,51 @@ export const offlineStorage = {
       tx.oncomplete = () => {
         const products = prodsReq.result || [];
         const categories = catsReq.result || [];
-        if (products.length > 0) memCache.products = products;
+        if (products.length > 0) {
+          memCache.products = products;
+          memCache.cachedEmbeddings = null;
+        }
         if (categories.length > 0) memCache.categories = categories;
         resolve({ products, categories });
       };
       tx.onerror = () => resolve(this.getCatalog());
     });
+  },
+
+  getAllProductEmbeddings(): CatalogItemEmbedding[] {
+    if (memCache.cachedEmbeddings !== null) {
+      return memCache.cachedEmbeddings;
+    }
+
+    const embeddings: CatalogItemEmbedding[] = [];
+    for (const product of memCache.products) {
+      if (product.is_active === false) {
+        continue;
+      }
+      if (!product.images || !Array.isArray(product.images)) {
+        continue;
+      }
+      for (const img of product.images) {
+        if (
+          img.embedding &&
+          Array.isArray(img.embedding) &&
+          img.embedding.length > 0
+        ) {
+          embeddings.push({
+            productId: product.id,
+            imageId: img.id,
+            embedding: img.embedding,
+          });
+        }
+      }
+    }
+
+    memCache.cachedEmbeddings = embeddings;
+    return embeddings;
+  },
+
+  invalidateEmbeddingsCache(): void {
+    memCache.cachedEmbeddings = null;
   },
 
   // --- Customers Methods ---
