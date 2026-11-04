@@ -8,6 +8,7 @@ interface BarcodeScannerInputProps {
   onSearchChange: (query: string) => void;
   searchQuery: string;
   onOpenScanner?: () => void;
+  onOpenVisionScanner?: () => void;
 }
 
 export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
@@ -15,6 +16,7 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
   onSearchChange,
   searchQuery,
   onOpenScanner,
+  onOpenVisionScanner,
 }) => {
   const [inputValue, setInputValue] = useState(searchQuery);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +46,21 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
     inputRef.current?.focus();
   };
 
+  const hasVision = Boolean(onOpenVisionScanner);
+  const hasScanner = Boolean(onOpenScanner);
+  const rightPadding =
+    hasVision && hasScanner
+      ? inputValue
+        ? "pr-28 sm:pr-56"
+        : "pr-24 sm:pr-52"
+      : hasVision || hasScanner
+        ? inputValue
+          ? "pr-20 sm:pr-32"
+          : "pr-14 sm:pr-28"
+        : inputValue
+          ? "pr-10"
+          : "pr-4";
+
   return (
     <div className="relative w-full">
       <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none text-base-content/50">
@@ -58,15 +75,7 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder="ยิงบาร์โค้ด หรือค้นหา..."
-        className={`input input-bordered w-full h-12 sm:h-14 pl-10 sm:pl-12 text-sm sm:text-lg font-bold rounded-2xl border-2 border-base-300 focus:border-primary focus:outline-none shadow-sm ${
-          onOpenScanner
-            ? inputValue
-              ? "pr-20 sm:pr-32"
-              : "pr-14 sm:pr-28"
-            : inputValue
-              ? "pr-10"
-              : "pr-4"
-        }`}
+        className={`input input-bordered w-full h-12 sm:h-14 pl-10 sm:pl-12 text-sm sm:text-lg font-bold rounded-2xl border-2 border-base-300 focus:border-primary focus:outline-none shadow-sm ${rightPadding}`}
       />
 
       <div className="absolute inset-y-0 right-0 pr-2 sm:pr-3 flex items-center gap-1 sm:gap-1.5">
@@ -80,6 +89,17 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         )}
+        {onOpenVisionScanner && (
+          <button
+            type="button"
+            onClick={onOpenVisionScanner}
+            className="btn btn-secondary btn-sm h-8.5 px-2.5 sm:h-10 sm:px-3 rounded-xl flex items-center gap-1.5 font-bold shadow-sm"
+            title="สแกนสินค้าด้วยภาพถ่าย (AI Vision)"
+          >
+            <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden sm:inline text-xs sm:text-sm">AI สแกน</span>
+          </button>
+        )}
         {onOpenScanner && (
           <button
             type="button"
@@ -87,9 +107,9 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
             className="btn btn-primary btn-sm h-8.5 px-2.5 sm:h-10 sm:px-3 rounded-xl flex items-center gap-1.5 font-bold shadow-sm"
             title="เปิดกล้องสแกนบาร์โค้ด"
           >
-            <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
+            <Barcode className="w-4 h-4 sm:w-5 sm:h-5" />
             <span className="hidden sm:inline text-xs sm:text-sm">
-              กล้องสแกน
+              บาร์โค้ด
             </span>
           </button>
         )}

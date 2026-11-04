@@ -15,6 +15,8 @@ import { CheckoutModal } from "../components/pos/CheckoutModal.tsx";
 import { ReceiptModal } from "../components/pos/ReceiptModal.tsx";
 import { SalesHistoryModal } from "../components/pos/SalesHistoryModal.tsx";
 import { DailySummaryDrawer } from "../components/pos/DailySummaryDrawer.tsx";
+import { CameraProductScannerModal } from "../components/pos/CameraProductScannerModal.tsx";
+import { useToast } from "../context/ToastContext.tsx";
 import { formatBaht } from "../utils/currency.ts";
 import { ShoppingCart, ArrowRight } from "lucide-react";
 
@@ -22,6 +24,7 @@ function PosContent() {
   const router = useRouter();
   const { user, token, isLoading: isAuthLoading } = useAuth();
   const { addItem, totalItemsCount, grandTotalSatang, items } = useCart();
+  const { toast } = useToast();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -32,6 +35,7 @@ function PosContent() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDailySummaryOpen, setIsDailySummaryOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [isVisionScannerOpen, setIsVisionScannerOpen] = useState(false);
   const [completedReceipt, setCompletedReceipt] = useState<Receipt | null>(
     null
   );
@@ -97,6 +101,12 @@ function PosContent() {
     setCompletedReceipt(receipt);
   };
 
+  const handleVisionSelectProduct = (product: Product) => {
+    addItem(product);
+    const price = product.unit_price ?? product.price ?? 0;
+    toast.success(`เพิ่ม ${product.name} (${formatBaht(price)}) แล้ว`);
+  };
+
   if (isAuthLoading || (!token && !user)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-base-100">
@@ -125,6 +135,7 @@ function PosContent() {
             categories={categories}
             onAddToCart={addItem}
             isLoading={isCatalogLoading}
+            onOpenVisionScanner={() => setIsVisionScannerOpen(true)}
           />
         </section>
 
@@ -222,6 +233,14 @@ function PosContent() {
       <DailySummaryDrawer
         isOpen={isDailySummaryOpen}
         onClose={() => setIsDailySummaryOpen(false)}
+      />
+
+      {/* Camera AI Vision Product Scanner Modal */}
+      <CameraProductScannerModal
+        isOpen={isVisionScannerOpen}
+        onClose={() => setIsVisionScannerOpen(false)}
+        onSelectProduct={handleVisionSelectProduct}
+        products={products}
       />
     </div>
   );

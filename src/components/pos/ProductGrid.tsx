@@ -16,6 +16,7 @@ interface ProductGridProps {
   categories: Category[];
   onAddToCart: (product: Product) => void;
   isLoading?: boolean;
+  onOpenVisionScanner?: () => void;
 }
 
 export const ProductGrid: React.FC<ProductGridProps> = ({
@@ -23,6 +24,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   categories,
   onAddToCart,
   isLoading = false,
+  onOpenVisionScanner,
 }) => {
   const { toast } = useToast();
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -106,6 +108,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
             onSearchChange={setSearchQuery}
             searchQuery={searchQuery}
             onOpenScanner={() => setIsScannerOpen(true)}
+            onOpenVisionScanner={onOpenVisionScanner}
           />
         </div>
         <CategoryTabs
