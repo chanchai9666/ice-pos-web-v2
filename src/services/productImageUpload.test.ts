@@ -1,28 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { uploadProductImageWithEmbedding } from "./productImageUpload.ts";
-import { apiClient } from "./apiClient.ts";
 import {
-  visionWorkerClient,
-  DEFAULT_VISION_MODEL,
-} from "./visionWorkerClient.ts";
+  uploadProductImageWithEmbedding,
+  uploadProductImage,
+} from "./productImageUpload.ts";
+import { apiClient } from "./apiClient.ts";
 import { offlineStorage } from "./offlineStorage.ts";
 
-test("uploadProductImageWithEmbedding: successful embedding extraction and upload to /products/:id/images", async () => {
+test("uploadProductImage: successful upload to /products/:id/images without frontend vector extraction", async () => {
   const file = new File(["dummy_bytes"], "apple.jpg", { type: "image/jpeg" });
-  const mockEmbedding = [0.12, 0.34, 0.56];
-  const mockModel = "Xenova/clip-vit-base-patch32";
-
   let invalidated = false;
   let uploadCalledWith: { endpoint: string; formData: FormData } | undefined;
 
   const mockDeps = {
-    visionWorkerClient: {
-      extractEmbedding: async (f: ImageData | ImageBitmap | string | Blob) => {
-        assert.equal(f, file);
-        return { embedding: mockEmbedding, modelName: mockModel };
-      },
-    },
     apiClient: {
       upload: async <T>(endpoint: string, formData: FormData): Promise<T> => {
         uploadCalledWith = { endpoint, formData };
@@ -50,23 +40,18 @@ test("uploadProductImageWithEmbedding: successful embedding extraction and uploa
 
   const fd = recorded.formData;
   assert.equal(fd.get("file"), file);
-  assert.equal(fd.get("embedding"), JSON.stringify(mockEmbedding));
-  assert.equal(fd.get("embedding_model"), mockModel);
   assert.equal(fd.get("is_primary"), "true");
+  // Backend จัดการ Vector ให้เอง หน้าบ้านไม่ต้องแนบ embedding เข้าไป
+  assert.equal(fd.get("embedding"), null);
+  assert.equal(fd.get("embedding_model"), null);
   assert.equal(invalidated, true, "offlineStorage cache should be invalidated");
 });
 
-test("uploadProductImageWithEmbedding: respects isPrimary=false in FormData", async () => {
+test("uploadProductImage: respects isPrimary=false in FormData", async () => {
   const file = new File(["dummy_bytes"], "banana.jpg", { type: "image/jpeg" });
   let uploadCalledWith: { endpoint: string; formData: FormData } | undefined;
 
   const mockDeps = {
-    visionWorkerClient: {
-      extractEmbedding: async () => ({
-        embedding: [0.9, 0.8],
-        modelName: "test-model",
-      }),
-    },
     apiClient: {
       upload: async <T>(endpoint: string, formData: FormData): Promise<T> => {
         uploadCalledWith = { endpoint, formData };
@@ -78,7 +63,7 @@ test("uploadProductImageWithEmbedding: respects isPrimary=false in FormData", as
     },
   };
 
-  await uploadProductImageWithEmbedding("prod-456", file, false, mockDeps);
+  await uploadProductImage("prod-456", file, false, mockDeps);
 
   assert.ok(uploadCalledWith);
   const recorded = uploadCalledWith as { endpoint: string; formData: FormData };
@@ -86,18 +71,12 @@ test("uploadProductImageWithEmbedding: respects isPrimary=false in FormData", as
   assert.equal(fd.get("is_primary"), "false");
 });
 
-test("uploadProductImageWithEmbedding: falls back to /products/:id/image when new endpoint fails", async () => {
+test("uploadProductImage: falls back to /products/:id/image when new endpoint fails", async () => {
   const file = new File(["dummy_bytes"], "orange.jpg", { type: "image/jpeg" });
   const calls: { endpoint: string; formData: FormData }[] = [];
   let invalidated = false;
 
   const mockDeps = {
-    visionWorkerClient: {
-      extractEmbedding: async () => ({
-        embedding: [0.1, 0.2],
-        modelName: "test-model",
-      }),
-    },
     apiClient: {
       upload: async <T>(endpoint: string, formData: FormData): Promise<T> => {
         calls.push({ endpoint, formData });
@@ -139,61 +118,10 @@ test("uploadProductImageWithEmbedding: falls back to /products/:id/image when ne
   );
 });
 
-test("uploadProductImageWithEmbedding: gracefully falls back to legacy upload if embedding extraction throws", async () => {
-  const file = new File(["dummy_bytes"], "grape.jpg", { type: "image/jpeg" });
-  const calls: { endpoint: string; formData: FormData }[] = [];
-  let invalidated = false;
-
-  const mockDeps = {
-    visionWorkerClient: {
-      extractEmbedding: async () => {
-        throw new Error("Worker terminated unexpectedly");
-      },
-    },
-    apiClient: {
-      upload: async <T>(endpoint: string, formData: FormData): Promise<T> => {
-        calls.push({ endpoint, formData });
-        return { success: true, fallback_from_extraction_error: true } as T;
-      },
-    },
-    offlineStorage: {
-      invalidateEmbeddingsCache: () => {
-        invalidated = true;
-      },
-    },
-  };
-
-  const result = await uploadProductImageWithEmbedding(
-    "prod-999",
-    file,
-    true,
-    mockDeps
-  );
-
-  assert.deepEqual(result, {
-    success: true,
-    fallback_from_extraction_error: true,
-  });
-  assert.equal(
-    calls.length,
-    1,
-    "Should skip new endpoint and go directly to legacy endpoint"
-  );
-  assert.equal(calls[0].endpoint, "/products/prod-999/image");
-  assert.equal(calls[0].formData.get("file"), file);
-  assert.equal(invalidated, true);
-});
-
-test("uploadProductImageWithEmbedding: rethrows error when both new endpoint and legacy endpoint fail", async () => {
+test("uploadProductImage: rethrows error when both new endpoint and legacy endpoint fail", async () => {
   const file = new File(["dummy_bytes"], "melon.jpg", { type: "image/jpeg" });
 
   const mockDeps = {
-    visionWorkerClient: {
-      extractEmbedding: async () => ({
-        embedding: [0.5],
-        modelName: "test-model",
-      }),
-    },
     apiClient: {
       upload: async () => {
         throw new Error("Server down");
@@ -215,9 +143,8 @@ test("uploadProductImageWithEmbedding: rethrows error when both new endpoint and
   );
 });
 
-test("uploadProductImageWithEmbedding: works with default singleton dependencies", async () => {
+test("uploadProductImage: works with default singleton dependencies", async () => {
   const file = new File(["dummy_bytes"], "mango.jpg", { type: "image/jpeg" });
-  const originalExtract = visionWorkerClient.extractEmbedding;
   const originalUpload = apiClient.upload;
   const originalInvalidate = offlineStorage.invalidateEmbeddingsCache;
 
@@ -225,10 +152,6 @@ test("uploadProductImageWithEmbedding: works with default singleton dependencies
   let invalidated = false;
 
   try {
-    visionWorkerClient.extractEmbedding = async () => ({
-      embedding: [0.77],
-      modelName: DEFAULT_VISION_MODEL,
-    });
     apiClient.upload = async <T>(endpoint: string): Promise<T> => {
       uploadEndpoint = endpoint;
       return { ok: true } as T;
@@ -242,7 +165,6 @@ test("uploadProductImageWithEmbedding: works with default singleton dependencies
     assert.equal(uploadEndpoint, "/products/prod-def/images");
     assert.equal(invalidated, true);
   } finally {
-    visionWorkerClient.extractEmbedding = originalExtract;
     apiClient.upload = originalUpload;
     offlineStorage.invalidateEmbeddingsCache = originalInvalidate;
   }

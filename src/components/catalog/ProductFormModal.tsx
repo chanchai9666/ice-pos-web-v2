@@ -12,6 +12,9 @@ import {
   Image as ImageIcon,
   Camera,
   ScanBarcode,
+  Star,
+  Trash2,
+  Plus,
 } from "lucide-react";
 import { useToast } from "../../context/ToastContext.tsx";
 import { CameraCaptureModal } from "../common/CameraCaptureModal.tsx";
@@ -23,6 +26,23 @@ interface ProductFormModalProps {
   categories: Category[];
   onClose: () => void;
   onSuccess: () => void;
+}
+
+const ANGLE_PRESETS = [
+  "หน้าตรง (รูปหลัก)",
+  "ด้านหลัง",
+  "ด้านข้าง / 45°",
+  "ด้านบน / บาร์โค้ด",
+  "กล่อง / บรรจุภัณฑ์",
+];
+
+export interface ProductPhotoItem {
+  id: string;
+  file?: File;
+  previewUrl: string;
+  angleLabel: string;
+  isPrimary: boolean;
+  isExisting?: boolean;
 }
 
 export const ProductFormModal: React.FC<ProductFormModalProps> = ({
@@ -42,13 +62,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [priceBaht, setPriceBaht] = useState("");
   const [costPriceBaht, setCostPriceBaht] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // รองรับหลายรูปภาพต่างมุมมอง (Multi-Angle Enrollment 3-5 รูปภาพ)
+  const [photos, setPhotos] = useState<ProductPhotoItem[]>([]);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
-  const [isExtractingAi, setIsExtractingAi] = useState(false);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,7 +87,31 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           : "0"
       );
       setIsActive(product.is_active !== false);
-      setPreviewUrl(product.image_url || null);
+
+      // โหลดรูปภาพเดิมของสินค้า
+      if (product.images && product.images.length > 0) {
+        setPhotos(
+          product.images.map((img, idx) => ({
+            id: img.id,
+            previewUrl: img.image_url,
+            angleLabel: ANGLE_PRESETS[idx] || `มุมมองที่ ${idx + 1}`,
+            isPrimary: Boolean(img.is_primary),
+            isExisting: true,
+          }))
+        );
+      } else if (product.image_url) {
+        setPhotos([
+          {
+            id: "existing-primary",
+            previewUrl: product.image_url,
+            angleLabel: ANGLE_PRESETS[0],
+            isPrimary: true,
+            isExisting: true,
+          },
+        ]);
+      } else {
+        setPhotos([]);
+      }
     } else {
       setName("");
       setCode(`PRD-${Date.now().toString().slice(-6)}`);
@@ -74,20 +120,59 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setPriceBaht("");
       setCostPriceBaht("0");
       setIsActive(true);
-      setPreviewUrl(null);
+      setPhotos([]);
     }
-    setImageFile(null);
-    setIsExtractingAi(false);
+    setIsUploadingPhotos(false);
+    setUploadProgressText("");
     setError(null);
   }, [product, categories, isOpen]);
 
   if (!isOpen) return null;
 
+  const handleAddPhoto = (file: File) => {
+    if (photos.length >= 5) {
+      toast.warning("บันทึกรูปภาพได้สูงสุด 5 มุมมองต่อสินค้า");
+      return;
+    }
+    const nextIdx = photos.length;
+    const angleLabel = ANGLE_PRESETS[nextIdx] || `มุมมองที่ ${nextIdx + 1}`;
+    const hasPrimary = photos.some((p) => p.isPrimary);
+    const newPhoto: ProductPhotoItem = {
+      id: `photo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+      angleLabel,
+      isPrimary: !hasPrimary,
+      isExisting: false,
+    };
+    setPhotos((prev) => [...prev, newPhoto]);
+  };
+
+  const handleSetPrimary = (photoId: string) => {
+    setPhotos((prev) =>
+      prev.map((p) => ({
+        ...p,
+        isPrimary: p.id === photoId,
+      }))
+    );
+  };
+
+  const handleRemovePhoto = (photoId: string) => {
+    setPhotos((prev) => {
+      const filtered = prev.filter((p) => p.id !== photoId);
+      if (filtered.length > 0 && !filtered.some((p) => p.isPrimary)) {
+        filtered[0].isPrimary = true;
+      }
+      return filtered;
+    });
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setImageFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      handleAddPhoto(file);
+      // Reset input value เพื่อให้เลือกไฟล์เดิมซ้ำได้ถ้าต้องการ
+      e.target.value = "";
     }
   };
 
@@ -151,20 +236,27 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         }
       }
 
-      // If there's an image file to upload with AI vector embedding
-      if (imageFile && savedProductId) {
-        setIsExtractingAi(true);
-        try {
-          await uploadProductImageWithEmbedding(
-            savedProductId,
-            imageFile,
-            true
+      // อัปโหลดรูปภาพใหม่ทีละมุมมอง (Multi-Angle Enrollment)
+      // หลังบ้านจะทำการบีบอัดเป็น WebP (<=50KB) และสกัด Vector Embedding (512 มิติ) ให้อัตโนมัติ
+      const newPhotos = photos.filter((p) => !p.isExisting && p.file);
+      if (newPhotos.length > 0 && savedProductId) {
+        setIsUploadingPhotos(true);
+        for (let i = 0; i < newPhotos.length; i++) {
+          const currentPhoto = newPhotos[i];
+          setUploadProgressText(
+            `กำลังอัปโหลดรูปภาพที่ ${i + 1} จาก ${newPhotos.length} (${currentPhoto.angleLabel})...`
           );
-        } catch (uploadErr) {
-          console.warn("Product image upload warning:", uploadErr);
-        } finally {
-          setIsExtractingAi(false);
+          try {
+            await uploadProductImageWithEmbedding(
+              savedProductId,
+              currentPhoto.file!,
+              currentPhoto.isPrimary
+            );
+          } catch (uploadErr) {
+            console.warn(`Product photo ${i + 1} upload warning:`, uploadErr);
+          }
         }
+        setIsUploadingPhotos(false);
       }
 
       toast.success(
@@ -211,49 +303,133 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
           )}
 
-          {isExtractingAi && (
+          {isUploadingPhotos && (
             <div className="alert alert-info text-sm font-bold rounded-2xl py-2 px-4 flex items-center gap-2">
               <span className="loading loading-spinner loading-xs"></span>
-              <span>กำลังบันทึกและสกัดเวกเตอร์ AI...</span>
+              <span>{uploadProgressText || "กำลังอัปโหลดรูปภาพสินค้า..."}</span>
             </div>
           )}
 
-          {/* Image Upload / Preview */}
-          <div className="flex items-center gap-4 p-3.5 border-2 border-dashed border-base-300 rounded-2xl bg-base-200/30">
-            <div className="w-20 h-20 rounded-xl bg-base-300 overflow-hidden flex items-center justify-center relative shrink-0">
-              {previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={previewUrl}
-                  alt="Product preview"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <ImageIcon className="w-8 h-8 text-base-content/40" />
+          {/* Multi-Angle Image Upload / Preview Grid (3-5 รูปภาพ) */}
+          <div className="p-4 border-2 border-dashed border-base-300 rounded-3xl bg-base-200/30 flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <label className="text-sm font-black flex items-center gap-1.5 text-base-content">
+                  <ImageIcon className="w-4 h-4 text-primary" />
+                  <span>รูปถ่ายสินค้า AI Vision ({photos.length}/5 รูป)</span>
+                </label>
+                <p className="text-xs text-base-content/60 font-medium mt-0.5">
+                  แนะนำถ่าย 3–5 รูปภาพ (หน้าตรง, หลัง, ข้าง 45°, ฉลากบาร์โค้ด)
+                  เพื่อความแม่นยำสูงสุด 99%+
+                </p>
+              </div>
+
+              {photos.length < 5 && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="btn btn-sm btn-outline rounded-xl font-bold gap-1.5 cursor-pointer">
+                    <Plus className="w-4 h-4" />
+                    <span>เลือกไฟล์</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraOpen(true)}
+                    className="btn btn-sm btn-primary rounded-xl font-bold gap-1.5"
+                    title="ถ่ายภาพมุมมองใหม่จากกล้อง"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>ถ่ายภาพ</span>
+                  </button>
+                </div>
               )}
             </div>
-            <div className="flex-1 min-w-0">
-              <label className="text-sm font-bold block mb-1.5">
-                รูปภาพสินค้า (แปลงเป็น WebP อัตโนมัติ)
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="file-input file-input-bordered file-input-sm flex-1 rounded-xl w-full"
-                />
-                <button
-                  type="button"
-                  onClick={() => setIsCameraOpen(true)}
-                  className="btn btn-outline btn-primary btn-sm rounded-xl font-bold gap-1.5 shrink-0 self-start sm:self-auto"
-                  title="ถ่ายภาพจากกล้อง"
-                >
-                  <Camera className="w-4 h-4" />
-                  <span>ถ่ายภาพ</span>
-                </button>
+
+            {/* Photo Thumbnails Grid */}
+            {photos.length === 0 ? (
+              <div
+                onClick={() => setIsCameraOpen(true)}
+                className="py-6 px-4 border border-dashed border-base-300 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-base-200/50 transition-colors text-base-content/50"
+              >
+                <Camera className="w-8 h-8 text-primary/60" />
+                <span className="text-xs font-bold">
+                  ยังไม่มีรูปภาพ แตะเพื่อถ่ายภาพมุมที่ 1 (หน้าตรง)
+                </span>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 pt-1">
+                {photos.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`relative rounded-2xl overflow-hidden border-2 bg-base-100 flex flex-col shadow-xs group transition-all ${
+                      item.isPrimary
+                        ? "border-primary ring-2 ring-primary/20"
+                        : "border-base-300 hover:border-base-content/30"
+                    }`}
+                  >
+                    {/* Thumbnail Image */}
+                    <div className="relative aspect-square w-full bg-base-300 overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.previewUrl}
+                        alt={item.angleLabel}
+                        className="w-full h-full object-cover"
+                      />
+
+                      {/* Primary Badge */}
+                      {item.isPrimary ? (
+                        <div className="absolute top-1.5 left-1.5 badge badge-primary badge-xs font-bold shadow-xs">
+                          รูปหลัก
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSetPrimary(item.id)}
+                          className="absolute top-1.5 left-1.5 btn btn-xs btn-circle bg-black/60 hover:bg-primary text-white border-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="ตั้งเป็นรูปหลัก"
+                        >
+                          <Star className="w-3 h-3" />
+                        </button>
+                      )}
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(item.id)}
+                        className="absolute top-1.5 right-1.5 btn btn-xs btn-circle bg-black/60 hover:bg-error text-white border-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="ลบรูปนี้"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    {/* Angle Label */}
+                    <div className="p-1.5 text-center bg-base-100 border-t border-base-200">
+                      <span className="text-[11px] font-bold text-base-content/80 truncate block">
+                        {item.angleLabel}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                {photos.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraOpen(true)}
+                    className="aspect-square rounded-2xl border-2 border-dashed border-base-300 hover:border-primary flex flex-col items-center justify-center gap-1.5 text-base-content/60 hover:text-primary transition-all bg-base-100/50 hover:bg-primary/5 cursor-pointer"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span className="text-[11px] font-bold">
+                      + มุมที่ {photos.length + 1}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Name */}
@@ -400,8 +576,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <>
                   <span className="loading loading-spinner loading-sm"></span>
                   <span>
-                    {isExtractingAi
-                      ? "กำลังบันทึกและสกัดเวกเตอร์ AI..."
+                    {isUploadingPhotos
+                      ? uploadProgressText || "กำลังอัปโหลดรูปภาพสินค้า..."
                       : isEditing
                         ? "กำลังบันทึกการแก้ไข..."
                         : "กำลังบันทึกสินค้าใหม่..."}
@@ -425,8 +601,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         isOpen={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}
         onCapture={(file) => {
-          setImageFile(file);
-          setPreviewUrl(URL.createObjectURL(file));
+          handleAddPhoto(file);
         }}
       />
 

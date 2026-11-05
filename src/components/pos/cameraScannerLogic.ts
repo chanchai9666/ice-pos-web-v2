@@ -1,5 +1,9 @@
 import type { Product } from "../../types/api.ts";
-import type { MatchCandidate, MatchTier } from "../../services/visualMatch.ts";
+import type {
+  MatchCandidate,
+  MatchResult,
+  MatchTier,
+} from "../../services/visualMatch.ts";
 
 /**
  * ตัดสินใจว่าควรส่งเสียง Beep และสั่งสั่น (Haptic) หรือไม่ โดยป้องกันการส่งเสียงซ้ำสำหรับสินค้าเดิมภายในระยะ cooldown
@@ -46,6 +50,42 @@ export function formatConfidencePercent(score?: number): string {
   return `${Math.round(score * 100)}%`;
 }
 
+export interface ConsensusTracker {
+  productId: string | null;
+  consecutiveCount: number;
+}
+
+/**
+ * ติดตามผลการสแกนหลายเฟรมติดต่อกัน (Consecutive Frames Consensus)
+ * ต้องพบสินค้าตัวเดิมที่เป็น HIGH_CONFIDENCE ครบตามจำนวนเฟรมที่กำหนด (เช่น 2 เฟรม) จึงถือว่าผ่านฉันทามติ
+ */
+export function updateConsensusTracker(
+  tracker: ConsensusTracker,
+  matchedProductId: string | null | undefined,
+  tier: MatchTier | null | undefined,
+  requiredFrames = 2
+): { updatedTracker: ConsensusTracker; isConsensusReached: boolean } {
+  if (tier !== "HIGH_CONFIDENCE" || !matchedProductId) {
+    return {
+      updatedTracker: { productId: null, consecutiveCount: 0 },
+      isConsensusReached: false,
+    };
+  }
+
+  if (tracker.productId === matchedProductId) {
+    const count = tracker.consecutiveCount + 1;
+    return {
+      updatedTracker: { productId: matchedProductId, consecutiveCount: count },
+      isConsensusReached: count >= requiredFrames,
+    };
+  }
+
+  return {
+    updatedTracker: { productId: matchedProductId, consecutiveCount: 1 },
+    isConsensusReached: requiredFrames <= 1,
+  };
+}
+
 /**
  * จับคู่ MatchCandidate เข้ากับข้อมูลสินค้า Product จาก Catalog
  */
@@ -61,4 +101,66 @@ export function getCandidatesWithProducts(
     }
   }
   return result;
+}
+
+/**
+ * ตัดสินใจอัปเดตผลการตรวจจับสินค้า เพื่อให้ผลลัพธ์ค้างอยู่บนหน้าจอแม้จะนำสินค้าออกจากกล้องแล้ว
+ * - หากสแกนพบสินค้าใหม่ (HIGH_CONFIDENCE หรือ AMBIGUOUS) จะอัปเดตเป็นผลลัพธ์ใหม่
+ * - หากเฟรมปัจจุบันไม่พบสินค้า (NO_MATCH) จะคงผลลัพธ์เดิมไว้ ไม่ล้างออก
+ */
+export function resolvePersistentMatchResult(
+  currentDisplayedResult: MatchResult | null,
+  newFrameResult: MatchResult
+): MatchResult | null {
+  if (
+    newFrameResult.tier === "HIGH_CONFIDENCE" ||
+    newFrameResult.tier === "AMBIGUOUS"
+  ) {
+    return newFrameResult;
+  }
+  // หากเป็น NO_MATCH ให้แสดงผลลัพธ์เดิมที่ค้างไว้ (Sticky)
+  return currentDisplayedResult;
+}
+
+/**
+ * แปลงผลลัพธ์จาก Server-side Match API (/api/v1/vision/match) ให้อยู่ในโครงสร้าง MatchResult
+ */
+export function mapBackendVisionResponseToMatchResult(
+  response: {
+    query_model?: string;
+    matches?: Array<{
+      product_id: string;
+      confidence: number;
+      product_name?: string;
+      price?: number;
+      image_url?: string;
+    }>;
+  },
+  highThreshold = 0.85,
+  ambiguousThreshold = 0.7
+): {
+  tier: MatchTier;
+  bestMatch: MatchCandidate | null;
+  candidates: MatchCandidate[];
+} {
+  const matches = response?.matches || [];
+  const candidates: MatchCandidate[] = matches.map((m) => ({
+    productId: m.product_id,
+    score: m.confidence,
+  }));
+
+  const bestMatch = candidates[0] || null;
+  let tier: MatchTier = "NO_MATCH";
+
+  if (bestMatch && bestMatch.score >= highThreshold) {
+    tier = "HIGH_CONFIDENCE";
+  } else if (bestMatch && bestMatch.score >= ambiguousThreshold) {
+    tier = "AMBIGUOUS";
+  }
+
+  return {
+    tier,
+    bestMatch,
+    candidates,
+  };
 }

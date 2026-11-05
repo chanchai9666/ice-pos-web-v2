@@ -319,3 +319,24 @@ export interface ErrorResponse {
   message: string;
   success?: boolean;
 }
+
+export interface VisionMatchItem {
+  product_id: string;
+  product_code: string;
+  barcode: string;
+  product_name: string;
+  price: number; // Satang
+  image_url: string;
+  confidence: number; // Cosine similarity (0.0 - 1.0)
+  embedding_model?: string;
+}
+
+export interface VisionMatchResponse {
+  query_model: string;
+  matches: VisionMatchItem[];
+}
+
+export interface VisionReindexResponse {
+  reindexed_count: number;
+  message: string;
+}

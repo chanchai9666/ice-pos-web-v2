@@ -1,14 +1,12 @@
 /**
- * บริการอัปโหลดรูปภาพสินค้าพร้อมสกัด Feature Embedding (AI Vector)
- * ส่งข้อมูลเวกเตอร์ขึ้น Backend API เพื่อใช้ค้นหาสินค้าด้วยกล้อง
+ * บริการอัปโหลดรูปภาพสินค้า
+ * ส่งไฟล์รูปภาพขึ้น Backend API (/api/v1/products/:id/images)
+ * โดย Backend จะบีบอัดภาพเป็น WebP (<= 50KB) และสกัด Embedding Vector (512 มิติ) ให้อัตโนมัติ
+ * หน้าบ้านไม่ต้องรันโมเดล Vision AI หรือ Web Worker อีกต่อไป
  * รองรับการย้อนกลับไปใช้ Legacy Endpoint (/products/:id/image) อัตโนมัติหาก Backend ยังไม่รองรับ
  */
 
 import { apiClient } from "./apiClient.ts";
-import {
-  visionWorkerClient,
-  DEFAULT_VISION_MODEL,
-} from "./visionWorkerClient.ts";
 import { offlineStorage } from "./offlineStorage.ts";
 
 export interface UploadProductImageDeps {
@@ -19,18 +17,15 @@ export interface UploadProductImageDeps {
       token?: string
     ) => Promise<T>;
   };
-  visionWorkerClient?: {
-    extractEmbedding: (
-      imageSource: ImageData | ImageBitmap | string | Blob
-    ) => Promise<{ embedding: number[]; modelName: string }>;
-  };
   offlineStorage?: {
     invalidateEmbeddingsCache: () => void;
   };
+  // เก็บ visionWorkerClient เผื่อ backward compatibility
+  visionWorkerClient?: unknown;
 }
 
 /**
- * อัปโหลดรูปภาพสินค้าและแนบ Embedding เวกเตอร์
+ * อัปโหลดรูปภาพสินค้าขึ้นระบบหลังบ้าน
  *
  * @param productId รหัสสินค้า
  * @param file ไฟล์รูปภาพที่เลือกหรือถ่ายจากกล้อง
@@ -44,7 +39,6 @@ export async function uploadProductImageWithEmbedding(
   deps: UploadProductImageDeps = {}
 ): Promise<unknown> {
   const client = deps.apiClient ?? apiClient;
-  const workerClient = deps.visionWorkerClient ?? visionWorkerClient;
   const storage = deps.offlineStorage ?? offlineStorage;
 
   const uploadLegacy = async () => {
@@ -58,33 +52,25 @@ export async function uploadProductImageWithEmbedding(
     return result;
   };
 
-  try {
-    const { embedding, modelName } = await workerClient.extractEmbedding(file);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("embedding", JSON.stringify(embedding));
-    formData.append("embedding_model", modelName || DEFAULT_VISION_MODEL);
-    formData.append("is_primary", String(isPrimary));
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("is_primary", String(isPrimary));
 
-    try {
-      const result = await client.upload(
-        `/products/${productId}/images`,
-        formData
-      );
-      storage.invalidateEmbeddingsCache();
-      return result;
-    } catch (newEndpointError) {
-      console.warn(
-        "Upload to /images failed, falling back to legacy /image:",
-        newEndpointError
-      );
-      return await uploadLegacy();
-    }
-  } catch (extractionError) {
+  try {
+    const result = await client.upload(
+      `/products/${productId}/images`,
+      formData
+    );
+    storage.invalidateEmbeddingsCache();
+    return result;
+  } catch (newEndpointError) {
     console.warn(
-      "AI vector extraction failed, falling back to legacy /image:",
-      extractionError
+      "Upload to /images failed, falling back to legacy /image:",
+      newEndpointError
     );
     return await uploadLegacy();
   }
 }
+
+// Alias สำหรับเรียกใช้งานแบบตรงไปตรงมา
+export const uploadProductImage = uploadProductImageWithEmbedding;

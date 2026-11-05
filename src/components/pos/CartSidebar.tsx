@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { useCart } from "../../context/CartContext.tsx";
 import { CartItemRow } from "./CartItemRow.tsx";
 import { formatBaht } from "../../utils/currency.ts";
@@ -23,6 +23,25 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
     grandTotalSatang,
     totalItemsCount,
   } = useCart();
+
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const prevItemsLengthRef = useRef(items.length);
+
+  useEffect(() => {
+    // เลื่อนลงล่างสุดอัตโนมัติเมื่อมีรายการสินค้าใหม่เพิ่มเข้ามา
+    if (items.length > prevItemsLengthRef.current) {
+      const timer = setTimeout(() => {
+        if (listContainerRef.current) {
+          listContainerRef.current.scrollTo({
+            top: listContainerRef.current.scrollHeight,
+            behavior: "smooth",
+          });
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+    prevItemsLengthRef.current = items.length;
+  }, [items.length]);
 
   return (
     <div className="card bg-base-100 border-2 border-base-300 shadow-lg rounded-3xl h-full flex flex-col overflow-hidden">
@@ -64,7 +83,10 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
       </div>
 
       {/* Cart Items List */}
-      <div className="flex-1 overflow-y-auto p-3.5 space-y-2.5">
+      <div
+        ref={listContainerRef}
+        className="flex-1 overflow-y-auto p-3.5 space-y-2.5"
+      >
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-base-content/40 text-center p-6 gap-3">
             <ShoppingCart className="w-20 h-20 opacity-30" />

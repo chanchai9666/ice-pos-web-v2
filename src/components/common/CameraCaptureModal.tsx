@@ -26,8 +26,15 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
   const stopStream = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {}
+      });
       streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   }, []);
 
@@ -36,12 +43,13 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     setErrorMessage(null);
     setIsLoading(true);
 
+    let acquiredStream: MediaStream | null = null;
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง");
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      acquiredStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: facingMode },
           width: { ideal: 1280 },
@@ -50,12 +58,26 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
         audio: false,
       });
 
-      streamRef.current = stream;
+      streamRef.current = acquiredStream;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        videoRef.current.srcObject = acquiredStream;
+        await videoRef.current.play().catch((playErr: unknown) => {
+          if (playErr instanceof Error && playErr.name === "AbortError") {
+            return;
+          }
+          throw playErr;
+        });
       }
     } catch (err: unknown) {
+      if (acquiredStream) {
+        acquiredStream.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch {}
+        });
+      }
+      stopStream();
+
       const msg =
         err instanceof Error ? err.message : "ไม่สามารถเข้าถึงกล้องได้";
       if (msg.includes("Permission") || msg.includes("denied")) {
@@ -79,8 +101,6 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
       stopStream();
     };
   }, [isOpen, capturedDataUrl, startCamera, stopStream]);
-
-  if (!isOpen) return null;
 
   const handleCapture = () => {
     const video = videoRef.current;
@@ -107,10 +127,16 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
   const handleRetake = () => {
     setCapturedDataUrl(null);
-    startCamera();
   };
 
-  const handleConfirm = () => {
+  const handleClose = useCallback(() => {
+    stopStream();
+    setCapturedDataUrl(null);
+    setErrorMessage(null);
+    onClose();
+  }, [stopStream, onClose]);
+
+  const handleConfirm = useCallback(() => {
     if (!capturedDataUrl) return;
 
     // Convert dataURL to File
@@ -129,18 +155,13 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
     onCapture(file);
     handleClose();
-  };
-
-  const handleClose = () => {
-    stopStream();
-    setCapturedDataUrl(null);
-    setErrorMessage(null);
-    onClose();
-  };
+  }, [capturedDataUrl, onCapture, handleClose]);
 
   const toggleFacingMode = () => {
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">

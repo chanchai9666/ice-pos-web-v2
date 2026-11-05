@@ -399,6 +399,40 @@ test("onProgress: unsubscribing stops receiving progress updates", async () => {
   assert.deepEqual(calls, [10]); // Unchanged
 });
 
+test("onProgress: passes progress meta data (loaded, total, file, status) correctly", async () => {
+  let mockWorker!: MockWorker;
+  const client = createVisionWorkerClient(() => {
+    mockWorker = new MockWorker();
+    return mockWorker as unknown as Worker;
+  });
+
+  let capturedProgress = 0;
+  let capturedMeta: unknown = null;
+
+  client.onProgress((p, meta) => {
+    capturedProgress = p;
+    capturedMeta = meta;
+  });
+
+  client.init();
+  mockWorker.emitMessage({
+    type: "PROGRESS",
+    progress: 45,
+    status: "progress",
+    file: "model.onnx",
+    loaded: 45000000,
+    total: 100000000,
+  });
+
+  assert.equal(capturedProgress, 45);
+  assert.deepEqual(capturedMeta, {
+    status: "progress",
+    file: "model.onnx",
+    loaded: 45000000,
+    total: 100000000,
+  });
+});
+
 test("fallback: createVisionWorkerClient without worker support throws descriptive error when initialized", async () => {
   // In Node environment without global Worker and without workerFactory
   const client = createVisionWorkerClient();

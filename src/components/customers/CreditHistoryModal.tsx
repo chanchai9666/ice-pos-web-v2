@@ -54,7 +54,7 @@ export const CreditHistoryModal: React.FC<CreditHistoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-      <div className="card bg-base-100 w-full max-w-3xl border-2 border-base-300 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="card bg-base-100 w-full max-w-4xl border-2 border-base-300 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="p-5 border-b-2 border-base-200 flex justify-between items-center bg-base-200/50">
           <div className="flex items-center gap-2.5">
@@ -100,11 +100,13 @@ export const CreditHistoryModal: React.FC<CreditHistoryModalProps> = ({
               <table className="table table-zebra w-full text-base">
                 <thead>
                   <tr className="border-b-2 border-base-300 text-sm font-bold text-base-content/70">
-                    <th>วัน/เวลา</th>
-                    <th>ประเภท</th>
-                    <th className="text-right">จำนวนเงิน</th>
-                    <th className="text-right">หนี้คงเหลือหลังทำรายการ</th>
-                    <th>หมายเหตุ / อ้างอิง</th>
+                    <th className="whitespace-nowrap">วัน/เวลา</th>
+                    <th className="whitespace-nowrap">ประเภท</th>
+                    <th className="text-right whitespace-nowrap">จำนวนเงิน</th>
+                    <th className="text-right whitespace-nowrap">
+                      หนี้คงเหลือหลังทำรายการ
+                    </th>
+                    <th className="whitespace-nowrap">หมายเหตุ / อ้างอิง</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -117,31 +119,34 @@ export const CreditHistoryModal: React.FC<CreditHistoryModalProps> = ({
                             ? new Date(tx.occurred_at).toLocaleString("th-TH")
                             : "-"}
                         </td>
-                        <td>
+                        <td className="whitespace-nowrap">
                           {isIncrease ? (
-                            <span className="badge badge-error gap-1 font-bold text-xs py-2 px-2.5">
-                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            <span className="badge badge-error gap-1 font-bold text-xs py-2 px-2.5 whitespace-nowrap">
+                              <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
                               ซื้อเงินเชื่อ
                             </span>
                           ) : (
-                            <span className="badge badge-success text-white gap-1 font-bold text-xs py-2 px-2.5">
-                              <ArrowDownLeft className="w-3.5 h-3.5" />
+                            <span className="badge badge-success text-white gap-1 font-bold text-xs py-2 px-2.5 whitespace-nowrap">
+                              <ArrowDownLeft className="w-3.5 h-3.5 shrink-0" />
                               ชำระหนี้
                             </span>
                           )}
                         </td>
                         <td
-                          className={`text-right font-black ${
+                          className={`text-right font-black whitespace-nowrap ${
                             isIncrease ? "text-error" : "text-success"
                           }`}
                         >
                           {isIncrease ? "+" : "-"}
                           {formatBaht(Math.abs(tx.amount))}
                         </td>
-                        <td className="text-right font-black text-base-content">
+                        <td className="text-right font-black text-base-content whitespace-nowrap">
                           {formatBaht(tx.balance_after)}
                         </td>
-                        <td className="text-xs text-base-content/80 max-w-xs truncate">
+                        <td
+                          className="text-xs text-base-content/80 max-w-xs truncate"
+                          title={tx.note || tx.ref_id || undefined}
+                        >
                           {tx.note || tx.ref_id || "-"}
                         </td>
                       </tr>

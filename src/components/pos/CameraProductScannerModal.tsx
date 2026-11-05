@@ -22,6 +22,7 @@ import {
 import type { Product } from "../../types/api.ts";
 import { useCameraStream } from "../../hooks/useCameraStream.ts";
 import { visionWorkerClient } from "../../services/visionWorkerClient.ts";
+import { matchFrameViaBackend } from "../../services/visionApiService.ts";
 import { offlineStorage } from "../../services/offlineStorage.ts";
 import type { MatchResult } from "../../services/visualMatch.ts";
 import { playBeepSound, triggerHapticFeedback } from "../../utils/audio.ts";
@@ -31,6 +32,10 @@ import {
   getViewfinderBorderClass,
   formatConfidencePercent,
   getCandidatesWithProducts,
+  updateConsensusTracker,
+  mapBackendVisionResponseToMatchResult,
+  resolvePersistentMatchResult,
+  type ConsensusTracker,
 } from "./cameraScannerLogic.ts";
 
 export {
@@ -38,6 +43,10 @@ export {
   getViewfinderBorderClass,
   formatConfidencePercent,
   getCandidatesWithProducts,
+  updateConsensusTracker,
+  mapBackendVisionResponseToMatchResult,
+  resolvePersistentMatchResult,
+  type ConsensusTracker,
 };
 
 export interface CameraProductScannerModalProps {
@@ -67,15 +76,35 @@ export const CameraProductScannerModal: React.FC<
     facingMode: "environment",
   });
 
+  const [matchMode, setMatchMode] = useState<"server" | "edge">("server");
+  const [serverMatchStatus, setServerMatchStatus] = useState<
+    "ready" | "fallback" | "error"
+  >("ready");
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
+  const [progressMeta, setProgressMeta] = useState<{
+    file?: string;
+    loaded?: number;
+    total?: number;
+    status?: string;
+  } | null>(null);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
+  const [activeFrameTier, setActiveFrameTier] = useState<
+    MatchResult["tier"] | null
+  >(null);
   const [recentlyAddedId, setRecentlyAddedId] = useState<string | null>(null);
+  const [dynamicProducts, setDynamicProducts] = useState<Map<string, Product>>(
+    new Map()
+  );
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isProcessingRef = useRef(false);
   const lastAlertedProductIdRef = useRef<string | null>(null);
   const lastAlertedTimeRef = useRef<number>(0);
+  const consensusTrackerRef = useRef<ConsensusTracker>({
+    productId: null,
+    consecutiveCount: 0,
+  });
 
   // เตรียมรายการข้อมูลสินค้าสำหรับอ้างอิง
   const allProducts = useMemo(() => {
@@ -91,14 +120,60 @@ export const CameraProductScannerModal: React.FC<
     return map;
   }, [allProducts]);
 
-  // เริ่มต้นโมเดล AI Vision และโหลดเวกเตอร์แคตตาล็อกสินค้า
+  // รวม productsMap เข้ากับ dynamicProducts สำหรับค้นหา
+  const effectiveProductsMap = useMemo(() => {
+    const combined = new Map(productsMap);
+    dynamicProducts.forEach((val, key) => {
+      if (!combined.has(key)) combined.set(key, val);
+    });
+    return combined;
+  }, [productsMap, dynamicProducts]);
+
+  const getProductById = useCallback(
+    (id: string): Product | undefined => {
+      return effectiveProductsMap.get(id);
+    },
+    [effectiveProductsMap]
+  );
+
+  // ปิดหน้าต่างโมดอลพร้อมหยุดการทำงานของสตรีมกล้อง
+  const handleClose = useCallback(() => {
+    stopCamera();
+    setMatchResult(null);
+    setActiveFrameTier(null);
+    onClose();
+  }, [stopCamera, onClose]);
+
+  // ล้างสินค้าที่ค้างอยู่เพื่อให้ผู้ใช้กดออกเองได้
+  const handleClearResult = useCallback(() => {
+    setMatchResult(null);
+    lastAlertedProductIdRef.current = null;
+    consensusTrackerRef.current = { productId: null, consecutiveCount: 0 };
+  }, []);
+
+  // จัดการเมื่อผู้ใช้กดเลือกสินค้าเพื่อเพิ่มลงตะกร้า
+  const handleSelectProduct = useCallback(
+    (product: Product) => {
+      setRecentlyAddedId(product.id);
+      onSelectProduct(product);
+      setTimeout(() => {
+        setRecentlyAddedId((curr) => (curr === product.id ? null : curr));
+      }, 1500);
+    },
+    [onSelectProduct]
+  );
+
+  // เริ่มต้นโมเดล AI Vision บนอุปกรณ์เฉพาะเมื่อเลือกโหมด Edge (Offline)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || matchMode !== "edge") return;
 
     let isMounted = true;
-    const unsubscribeProgress = visionWorkerClient.onProgress((p) => {
+    const unsubscribeProgress = visionWorkerClient.onProgress((p, meta) => {
       if (isMounted) {
         setLoadProgress(Math.round(p));
+        if (meta) {
+          setProgressMeta(meta);
+        }
       }
     });
 
@@ -127,15 +202,17 @@ export const CameraProductScannerModal: React.FC<
       isMounted = false;
       unsubscribeProgress();
     };
-  }, [isOpen]);
+  }, [isOpen, matchMode]);
 
   // รอบการสแกนภาพและคำนวณจับคู่สินค้าทุกๆ 600ms เมื่อกล้องพร้อมทำงาน
   useEffect(() => {
     if (!isOpen || !isActive) {
       setMatchResult(null);
+      setActiveFrameTier(null);
       isProcessingRef.current = false;
       lastAlertedProductIdRef.current = null;
       lastAlertedTimeRef.current = 0;
+      consensusTrackerRef.current = { productId: null, consecutiveCount: 0 };
       return;
     }
 
@@ -168,8 +245,9 @@ export const CameraProductScannerModal: React.FC<
           const vh = video.videoHeight;
 
           if (vw > 0 && vh > 0) {
-            // ตัดภาพกึ่งกลางเป็นสี่เหลี่ยมจัตุรัสให้ตรงกับกรอบเล็งเป้า
-            const size = Math.min(vw, vh);
+            // ตัดภาพเฉพาะบริเวณกรอบ Focus Area (Reticle) ตรงกลาง 70% เพื่อตัด noise พื้นหลัง
+            const cropRatio = 0.7;
+            const size = Math.min(vw, vh) * cropRatio;
             const sx = (vw - size) / 2;
             const sy = (vh - size) / 2;
             ctx.drawImage(video, sx, sy, size, size, 0, 0, 320, 320);
@@ -178,16 +256,75 @@ export const CameraProductScannerModal: React.FC<
           }
 
           const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-          const res = await visionWorkerClient.matchFrame(dataUrl);
+          let res: MatchResult;
+
+          if (matchMode === "server") {
+            try {
+              const backendRes = await matchFrameViaBackend(dataUrl, 0.7, 5);
+              if (backendRes?.matches) {
+                const newItems: Product[] = [];
+                for (const m of backendRes.matches) {
+                  if (!productsMap.has(m.product_id)) {
+                    newItems.push({
+                      id: m.product_id,
+                      name: m.product_name,
+                      code: m.product_code,
+                      barcode: m.barcode,
+                      price: m.price,
+                      image_url: m.image_url,
+                      category_id: "",
+                      is_active: true,
+                    });
+                  }
+                }
+                if (newItems.length > 0) {
+                  setDynamicProducts((prev) => {
+                    const next = new Map(prev);
+                    for (const item of newItems) {
+                      if (!next.has(item.id)) {
+                        next.set(item.id, item);
+                      }
+                    }
+                    return next;
+                  });
+                }
+              }
+              res = mapBackendVisionResponseToMatchResult(backendRes);
+              setServerMatchStatus("ready");
+            } catch (serverErr) {
+              console.warn(
+                "Server-side vision match error, attempting fallback to edge worker:",
+                serverErr
+              );
+              setServerMatchStatus("fallback");
+              if (visionWorkerClient.isReady()) {
+                res = await visionWorkerClient.matchFrame(dataUrl);
+              } else {
+                res = { tier: "NO_MATCH", bestMatch: null, candidates: [] };
+              }
+            }
+          } else {
+            res = await visionWorkerClient.matchFrame(dataUrl);
+          }
 
           if (!isMounted) return;
 
-          setMatchResult(res);
+          setActiveFrameTier(res.tier);
+          setMatchResult((prev) => resolvePersistentMatchResult(prev, res));
 
           const bestPid = res.bestMatch?.productId;
+          const { updatedTracker, isConsensusReached } = updateConsensusTracker(
+            consensusTrackerRef.current,
+            bestPid,
+            res.tier,
+            2 // ต้องการตรวจจับได้สินค้าเดิมติดต่อกันอย่างน้อย 2 เฟรม
+          );
+          consensusTrackerRef.current = updatedTracker;
+
           const now = Date.now();
 
           if (
+            isConsensusReached &&
             shouldTriggerSound(
               res.tier,
               bestPid,
@@ -200,6 +337,14 @@ export const CameraProductScannerModal: React.FC<
             lastAlertedTimeRef.current = now;
             playBeepSound();
             triggerHapticFeedback(60);
+
+            // Auto-add สินค้าลงตะกร้าทันทีเมื่อผ่านเกณฑ์ฉันทามติ (Consensus)
+            const matchedProduct = bestPid
+              ? getProductById(bestPid)
+              : undefined;
+            if (matchedProduct) {
+              handleSelectProduct(matchedProduct);
+            }
           } else if (res.tier === "NO_MATCH") {
             lastAlertedProductIdRef.current = null;
           }
@@ -215,25 +360,15 @@ export const CameraProductScannerModal: React.FC<
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, [isOpen, isActive, videoRef]);
-
-  // ปิดหน้าต่างโมดอลพร้อมหยุดการทำงานของสตรีมกล้อง
-  const handleClose = useCallback(() => {
-    stopCamera();
-    onClose();
-  }, [stopCamera, onClose]);
-
-  // จัดการเมื่อผู้ใช้กดเลือกสินค้าเพื่อเพิ่มลงตะกร้า
-  const handleSelectProduct = useCallback(
-    (product: Product) => {
-      setRecentlyAddedId(product.id);
-      onSelectProduct(product);
-      setTimeout(() => {
-        setRecentlyAddedId((curr) => (curr === product.id ? null : curr));
-      }, 1500);
-    },
-    [onSelectProduct]
-  );
+  }, [
+    isOpen,
+    isActive,
+    videoRef,
+    matchMode,
+    productsMap,
+    getProductById,
+    handleSelectProduct,
+  ]);
 
   if (!isOpen) {
     return null;
@@ -242,7 +377,7 @@ export const CameraProductScannerModal: React.FC<
   // หาสินค้าอันดับ 1 สำหรับกรณี HIGH_CONFIDENCE
   const bestMatchCandidate = matchResult?.bestMatch;
   const bestMatchProduct = bestMatchCandidate
-    ? productsMap.get(bestMatchCandidate.productId)
+    ? getProductById(bestMatchCandidate.productId)
     : undefined;
 
   // หาสินค้าตัวเลือก 2-4 รายการสำหรับกรณี AMBIGUOUS
@@ -250,12 +385,13 @@ export const CameraProductScannerModal: React.FC<
     matchResult?.tier === "AMBIGUOUS"
       ? getCandidatesWithProducts(
           matchResult.candidates.slice(0, 4),
-          productsMap
+          effectiveProductsMap
         )
       : [];
 
   const tier = matchResult?.tier ?? "NO_MATCH";
-  const viewfinderBorderClass = getViewfinderBorderClass(tier);
+  const activeTier = activeFrameTier ?? "NO_MATCH";
+  const viewfinderBorderClass = getViewfinderBorderClass(activeTier);
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
@@ -269,8 +405,20 @@ export const CameraProductScannerModal: React.FC<
             <div>
               <h3 className="text-base sm:text-lg font-black text-base-content leading-tight flex items-center gap-1.5">
                 <span>สแกนสินค้าด้วยภาพถ่าย</span>
-                <span className="badge badge-primary badge-xs sm:badge-sm font-bold">
-                  AI Vision
+                <span
+                  className={`badge badge-xs sm:badge-sm font-bold ${
+                    matchMode === "server"
+                      ? serverMatchStatus === "fallback"
+                        ? "badge-warning"
+                        : "badge-primary"
+                      : "badge-secondary"
+                  }`}
+                >
+                  {matchMode === "server"
+                    ? serverMatchStatus === "fallback"
+                      ? "Server (Fallback Edge)"
+                      : "Server AI"
+                    : "Edge Worker"}
                 </span>
               </h3>
               <p className="text-xs text-base-content/60 font-medium">
@@ -279,7 +427,35 @@ export const CameraProductScannerModal: React.FC<
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
+            {/* Mode Toggle Button */}
+            <div className="flex items-center bg-base-300/70 p-0.5 rounded-xl text-xs font-bold shrink-0">
+              <button
+                type="button"
+                onClick={() => setMatchMode("server")}
+                className={`px-2 py-0.5 rounded-lg transition-all ${
+                  matchMode === "server"
+                    ? "bg-primary text-primary-content shadow-xs"
+                    : "text-base-content/60 hover:text-base-content"
+                }`}
+                title="ค้นหาผ่าน Backend API (เร็วมาก ไม่ต้องโหลดโมเดล)"
+              >
+                Server
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatchMode("edge")}
+                className={`px-2 py-0.5 rounded-lg transition-all ${
+                  matchMode === "edge"
+                    ? "bg-primary text-primary-content shadow-xs"
+                    : "text-base-content/60 hover:text-base-content"
+                }`}
+                title="ประมวลผลบนเบราว์เซอร์เครื่องนี้ (รองรับออฟไลน์)"
+              >
+                Edge
+              </button>
+            </div>
+
             {devices.length > 1 && (
               <button
                 type="button"
@@ -371,11 +547,19 @@ export const CameraProductScannerModal: React.FC<
               {isModelLoading && (
                 <div className="absolute inset-x-3 bottom-3 z-20 bg-base-100/90 backdrop-blur-md border border-base-300 rounded-xl p-2.5 shadow-lg flex flex-col gap-1.5">
                   <div className="flex justify-between items-center text-xs font-bold text-base-content">
-                    <span className="flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-primary animate-spin" />
-                      กำลังเตรียมโมเดล AI Vision บนอุปกรณ์...
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <Sparkles className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
+                      <span className="truncate">
+                        {progressMeta?.loaded &&
+                        progressMeta?.total &&
+                        progressMeta.total > 0
+                          ? `กำลังดาวน์โหลดโมเดล Vision (${(progressMeta.loaded / (1024 * 1024)).toFixed(1)} / ${(progressMeta.total / (1024 * 1024)).toFixed(1)} MB)...`
+                          : progressMeta?.loaded && progressMeta.loaded > 0
+                            ? `กำลังดาวน์โหลดโมเดล Vision (${(progressMeta.loaded / (1024 * 1024)).toFixed(1)} MB)...`
+                            : "กำลังเตรียมโมเดล AI Vision บนอุปกรณ์..."}
+                      </span>
                     </span>
-                    <span className="text-primary font-black">
+                    <span className="text-primary font-black shrink-0 ml-2">
                       {loadProgress}%
                     </span>
                   </div>
@@ -414,14 +598,24 @@ export const CameraProductScannerModal: React.FC<
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <div className="text-base sm:text-lg font-black text-success leading-tight">
-                      {formatBaht(
-                        bestMatchProduct.unit_price ??
-                          bestMatchProduct.price ??
-                          0
-                      )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right">
+                      <div className="text-base sm:text-lg font-black text-success leading-tight">
+                        {formatBaht(
+                          bestMatchProduct.unit_price ??
+                            bestMatchProduct.price ??
+                            0
+                        )}
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={handleClearResult}
+                      className="btn btn-ghost btn-circle btn-xs text-base-content/50 hover:text-base-content hover:bg-base-200"
+                      title="ล้างผลลัพธ์เพื่อสแกนใหม่"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
@@ -453,9 +647,19 @@ export const CameraProductScannerModal: React.FC<
                   <span>
                     พบสินค้าใกล้เคียงหลายรายการ กรุณาเลือกรายการที่ถูกต้อง:
                   </span>
-                  <span className="badge badge-warning badge-xs font-bold">
-                    เลือก 1 รายการ
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="badge badge-warning badge-xs font-bold">
+                      เลือก 1 รายการ
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearResult}
+                      className="btn btn-ghost btn-xs text-xs font-bold text-base-content/60 hover:text-base-content h-6 px-1.5 min-h-0"
+                      title="ล้างผลการค้นหาเพื่อสแกนใหม่"
+                    >
+                      ✕ ล้าง
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

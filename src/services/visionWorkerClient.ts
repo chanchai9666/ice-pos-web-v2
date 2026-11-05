@@ -11,6 +11,18 @@ import type {
 
 export const DEFAULT_VISION_MODEL = "Xenova/clip-vit-base-patch32";
 
+export interface VisionProgressMeta {
+  status?: string;
+  file?: string;
+  loaded?: number;
+  total?: number;
+}
+
+export type VisionProgressCallback = (
+  progress: number,
+  meta?: VisionProgressMeta
+) => void;
+
 export interface VisionWorkerClient {
   init(modelName?: string): Promise<void>;
   updateCatalog(catalog: CatalogItemEmbedding[]): void;
@@ -23,7 +35,7 @@ export interface VisionWorkerClient {
   ): Promise<{ embedding: number[]; modelName: string }>;
   isReady(): boolean;
   isLoading(): boolean;
-  onProgress(callback: (progress: number) => void): () => void;
+  onProgress(callback: VisionProgressCallback): () => void;
   terminate(): void;
 }
 
@@ -31,6 +43,10 @@ interface WorkerMessageData {
   type: string;
   id?: string;
   progress?: number;
+  status?: string;
+  file?: string;
+  loaded?: number;
+  total?: number;
   modelName?: string;
   result?: MatchResult;
   embedding?: number[];
@@ -49,7 +65,7 @@ export function createVisionWorkerClient(
     reject: (err: Error) => void;
   } | null = null;
   let cachedCatalog: CatalogItemEmbedding[] = [];
-  const progressCallbacks = new Set<(progress: number) => void>();
+  const progressCallbacks = new Set<VisionProgressCallback>();
   let reqIdCounter = 0;
   const pendingMatchRequests = new Map<
     string,
@@ -73,9 +89,15 @@ export function createVisionWorkerClient(
     switch (msg.type) {
       case "PROGRESS": {
         if (typeof msg.progress === "number") {
+          const meta: VisionProgressMeta = {
+            status: msg.status,
+            file: msg.file,
+            loaded: msg.loaded,
+            total: msg.total,
+          };
           for (const cb of progressCallbacks) {
             try {
-              cb(msg.progress);
+              cb(msg.progress, meta);
             } catch (err) {
               console.error("Error in onProgress callback:", err);
             }
@@ -271,13 +293,29 @@ export function createVisionWorkerClient(
       const w = getOrCreateWorker();
       const id = `extract_${++reqIdCounter}_${Date.now()}`;
 
+      // แปลง Blob หรือ File เป็น Data URL string ก่อนส่งเข้า Worker
+      // เพื่อให้ Transformers.js Pipeline ประมวลผลได้โดยตรง ไม่ติด Unsupported input type
+      let payloadImage: ImageData | ImageBitmap | string | Blob = imageSource;
+      if (typeof FileReader !== "undefined" && imageSource instanceof Blob) {
+        try {
+          payloadImage = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(imageSource);
+          });
+        } catch {
+          // fallback ไปยัง imageSource เดิมหากมีข้อผิดพลาด
+        }
+      }
+
       return new Promise<{ embedding: number[]; modelName: string }>(
         (resolve, reject) => {
           pendingExtractRequests.set(id, { resolve, reject });
           w.postMessage({
             type: "EXTRACT_EMBEDDING",
             id,
-            image: imageSource,
+            image: payloadImage,
           });
         }
       );
@@ -291,7 +329,7 @@ export function createVisionWorkerClient(
       return loading;
     },
 
-    onProgress(callback: (progress: number) => void): () => void {
+    onProgress(callback: VisionProgressCallback): () => void {
       progressCallbacks.add(callback);
       return () => {
         progressCallbacks.delete(callback);

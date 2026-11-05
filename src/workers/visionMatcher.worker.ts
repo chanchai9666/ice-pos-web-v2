@@ -32,15 +32,24 @@ function postWorkerMessage(message: unknown) {
 
 interface ProgressEventPayload {
   status?: string;
+  name?: string;
+  file?: string;
   progress?: number;
+  loaded?: number;
+  total?: number;
   [key: string]: unknown;
 }
+
+// ตัวแปรเก็บความคืบหน้าระหว่างดาวน์โหลดโมเดล
+let highestProgress = 0;
 
 async function getExtractor(
   modelName = DEFAULT_MODEL
 ): Promise<ExtractorPipeline> {
   if (!extractorPromise || currentModelName !== modelName) {
     currentModelName = modelName;
+    highestProgress = 0;
+
     extractorPromise = (
       pipeline as unknown as (
         task: string,
@@ -51,13 +60,61 @@ async function getExtractor(
       ) => Promise<ExtractorPipeline>
     )("image-feature-extraction", modelName, {
       progress_callback: (progressData: ProgressEventPayload | number) => {
-        const progress =
-          typeof progressData === "number"
-            ? progressData
-            : typeof progressData?.progress === "number"
-              ? progressData.progress
-              : 0;
-        postWorkerMessage({ type: "PROGRESS", progress });
+        if (typeof progressData === "number") {
+          highestProgress = Math.max(highestProgress, progressData);
+          postWorkerMessage({
+            type: "PROGRESS",
+            progress: highestProgress,
+          });
+          return;
+        }
+
+        const { status, file, progress, loaded } = progressData || {};
+        let total = progressData?.total;
+
+        // หาก browser CORS ไม่ส่ง content-length ทำให้ total เป็น 0 หรือไม่มี
+        // ให้ใช้ขนาดโมเดลประมาณ (~89.1 MB) สำหรับไฟล์ .onnx ในการคำนวณความคืบหน้า
+        const ESTIMATED_ONNX_BYTES = 89_117_000;
+        if (
+          (!total || total <= 0) &&
+          file?.endsWith(".onnx") &&
+          typeof loaded === "number"
+        ) {
+          total = ESTIMATED_ONNX_BYTES;
+        }
+
+        let calculatedProgress =
+          typeof progress === "number" && Number.isFinite(progress)
+            ? progress
+            : 0;
+
+        if (
+          typeof loaded === "number" &&
+          typeof total === "number" &&
+          total > 0
+        ) {
+          calculatedProgress = Math.min(100, (loaded / total) * 100);
+        }
+
+        highestProgress = Math.max(
+          highestProgress,
+          Math.min(100, calculatedProgress)
+        );
+
+        if (status === "done" && file?.endsWith(".onnx")) {
+          highestProgress = 100;
+        } else if (status === "ready") {
+          highestProgress = 100;
+        }
+
+        postWorkerMessage({
+          type: "PROGRESS",
+          progress: highestProgress,
+          status,
+          file,
+          loaded,
+          total,
+        });
       },
     });
   }
@@ -121,8 +178,17 @@ self.addEventListener("message", async (event: MessageEvent<unknown>) => {
     case "EXTRACT_EMBEDDING": {
       const { id, image } = data;
       try {
+        let processableImage = image;
+        if (typeof Blob !== "undefined" && image instanceof Blob) {
+          processableImage = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(image);
+          });
+        }
         const extractor = await getExtractor();
-        const output = await extractor(image, {
+        const output = await extractor(processableImage, {
           pooling: "mean",
           normalize: true,
         });
